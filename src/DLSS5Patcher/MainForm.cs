@@ -1,0 +1,487 @@
+using DLSS5Patcher.Core;
+using DLSS5Patcher.Ui;
+
+namespace DLSS5Patcher;
+
+/// <summary>
+/// 主窗体：左侧导航（一键安装 / 使用教程 / 设置·关于）+ 右侧内容区。
+/// 视觉风格对齐 GSX 汉化安装器（深色 + 主题绿卡片），中英双语（首启选择，设置页可切换）。
+/// 支持的游戏与路线：MSFS 2024（OptiScaler）、MSFS 2020（占位）、X-Plane 12（DLSS5-Feeder · Vulkan）。
+/// </summary>
+public sealed class MainForm : Form
+{
+    private const int ClientW = 1080;
+    private const int ClientH = 800;
+    private const int SidebarW = 200;
+
+    private GpuInfo _gpu = new("", "", GpuGeneration.Unknown);
+    private GameInstall? _game2024;
+    private GameInstall? _game2020;
+    private GameInstall? _gameXp12;
+
+    private readonly HomePage _home = new();
+    private readonly TutorialPage _tutorial = new();
+    private readonly AboutPage _about = new();
+    private readonly Control[] _pages = new Control[3];
+    private readonly Button[] _nav = new Button[3];
+
+    public MainForm()
+    {
+        Text = L.S("DLSS5 神经渲染安装器 — MSFS 2024 / X-Plane 12（RTX 20-50 系）",
+                   "DLSS5 Neural Render Patcher — MSFS 2024 / X-Plane 12 (RTX 20-50 series)");
+        Font = new Font("Microsoft YaHei UI", 9F);
+        BackColor = Theme.Sidebar;
+        ClientSize = new Size(ClientW, ClientH);
+        FormBorderStyle = FormBorderStyle.FixedSingle;
+        MaximizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+
+        _pages[0] = _home;
+        _pages[1] = _tutorial;
+        _pages[2] = _about;
+
+        BuildSidebar();
+
+        var content = new Panel
+        {
+            Location = new Point(SidebarW, 0),
+            Size = new Size(ClientW - SidebarW, ClientH),
+            BackColor = Theme.Bg,
+        };
+        foreach (var p in _pages) content.Controls.Add(p);
+        Controls.Add(content);
+
+        WireEvents();
+
+        // 高 DPI：布局按 96DPI 设计，此处按真实 DPI 整体缩放（字体本身随 DPI 渲染，无需缩放字体）
+        float dpiFactor;
+        using (var g = CreateGraphics()) dpiFactor = g.DpiX / 96f;
+        if (dpiFactor > 1.01f)
+        {
+            Scale(new SizeF(dpiFactor, dpiFactor));
+            ClientSize = new Size((int)(ClientW * dpiFactor), (int)(ClientH * dpiFactor));
+        }
+
+        SelectNav(0);
+        _ = RefreshAsync();
+    }
+
+    // ───────────────────────────── 外壳 UI ─────────────────────────────
+
+    private void BuildSidebar()
+    {
+        var brand = Theme.MakeLabel("DLSS5", Theme.Accent, 16f, bold: true);
+        brand.Location = new Point(20, 24);
+        Controls.Add(brand);
+
+        var brandSub = Theme.MakeLabel(L.S("MSFS · XP12 神经渲染", "MSFS · XP12 Neural Render"), Theme.TextMuted, 8f);
+        brandSub.Location = new Point(20, 56);
+        Controls.Add(brandSub);
+
+        string[] navTexts = { L.S("一键安装", "Install"), L.S("使用教程", "Tutorial"), L.S("设置 · 关于", "Settings · About") };
+        for (int i = 0; i < navTexts.Length; i++)
+        {
+            int idx = i; // for 循环变量是共享的，闭包必须捕获局部副本
+            var b = new Button
+            {
+                Text = navTexts[i],
+                FlatStyle = FlatStyle.Flat,
+                Size = new Size(SidebarW - 32, 40),
+                Location = new Point(16, 100 + i * 46),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(14, 0, 0, 0),
+                Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                TabStop = false,
+            };
+            b.FlatAppearance.BorderSize = 0;
+            b.FlatAppearance.MouseOverBackColor = Theme.SurfaceHover;
+            b.Click += (_, _) => SelectNav(idx);
+            _nav[i] = b;
+            Controls.Add(b);
+        }
+
+        var separator = new Panel { BackColor = Theme.Border, Location = new Point(16, ClientH - 92), Size = new Size(SidebarW - 32, 1) };
+        Controls.Add(separator);
+
+        var qq = Theme.MakeLabel(L.S("QQ 群 615523002", "QQ Group 615523002"), Theme.Accent, 8.5f, bold: true);
+        qq.Location = new Point(20, ClientH - 74);
+        qq.Cursor = Cursors.Hand;
+        qq.Click += (_, _) => SelectNav(2);
+        Controls.Add(qq);
+
+        var free = Theme.MakeLabel(L.S("完全免费 · 禁止倒卖", "Free forever · No reselling"), Theme.TextMuted, 8f);
+        free.Location = new Point(20, ClientH - 50);
+        Controls.Add(free);
+    }
+
+    private void SelectNav(int idx)
+    {
+        _pages[idx].BringToFront();
+        for (int i = 0; i < _nav.Length; i++)
+        {
+            _nav[i].BackColor = i == idx ? Theme.SurfaceRaised : Theme.Sidebar;
+            _nav[i].ForeColor = i == idx ? Theme.Accent : Theme.TextSecondary;
+        }
+    }
+
+    private void WireEvents()
+    {
+        _home.RefreshRequested += () => _ = RefreshAsync();
+        _home.MsfsInstallRequested += () => _ = InstallMsfsAsync();
+        _home.MsfsUninstallRequested += () => _ = UninstallMsfsAsync();
+        _home.MsfsBrowseRequested += BrowseForGame;
+        _home.XpInstallRequested += () => _ = InstallXp12Async();
+        _home.XpUninstallRequested += () => _ = UninstallXp12Async();
+        _home.XpPickKitRequested += PickKitDir;
+        _home.OpenFolderRequested += OpenGameDir;
+    }
+
+    private void OpenGameDir(int cardIdx)
+    {
+        var dir = cardIdx switch
+        {
+            HomePage.CardMsfs2024 => _game2024?.GameDir,
+            HomePage.CardMsfs2020 => _game2020?.GameDir,
+            HomePage.CardXp12 => _gameXp12?.GameDir,
+            _ => null,
+        };
+        if (dir != null) System.Diagnostics.Process.Start("explorer.exe", dir);
+    }
+
+    private void Log(string s) => _home.Log(s);
+
+    // ───────────────────────────── 检测 ─────────────────────────────
+
+    private async Task RefreshAsync()
+    {
+        _home.SetBusy(true, L.S("正在检测...", "Detecting..."));
+        try
+        {
+            await Task.Run(() =>
+            {
+                _gpu = GpuInfo.Detect();
+                _game2024 = GameLocator.Find(GameLocator.Targets[0].AppId, GameLocator.Targets[0].ExeName);
+                _game2020 = GameLocator.Find(GameLocator.Targets[1].AppId, GameLocator.Targets[1].ExeName);
+                _gameXp12 = GameLocator.Find(GameLocator.Targets[2].AppId, GameLocator.Targets[2].ExeName);
+            });
+
+            _home.SetGpu(
+                L.S($"GPU: {(_gpu.Name.Length > 0 ? _gpu.Name : "未检测到 NVIDIA 显卡")}   |   驱动: {(_gpu.Driver.Length > 0 ? _gpu.Driver : "未知")}",
+                    $"GPU: {(_gpu.Name.Length > 0 ? _gpu.Name : "No NVIDIA GPU detected")}   |   Driver: {(_gpu.Driver.Length > 0 ? _gpu.Driver : "unknown")}") +
+                (_gpu.IsNvidia ? $"   |   {_gpu.GenerationCn}" : ""),
+                _gpu.SupportedThisVersion);
+
+            UpdateMsfs2024Card();
+            UpdateMsfs2020Card();
+            UpdateXp12Card();
+
+            var checks = new List<string>();
+            if (!_gpu.IsNvidia)
+                checks.Add(L.S("✘ 未检测到 NVIDIA RTX 显卡，无法使用 DLSS", "✘ No NVIDIA RTX GPU detected — DLSS unavailable"));
+            else if (!_gpu.SupportedThisVersion)
+                checks.Add(L.S($"✘ {_gpu.GenerationCn}：不支持（仅支持 RTX 20-50 系）",
+                               $"✘ {_gpu.GenerationCn}: not supported (RTX 20-50 series only)"));
+            else
+                checks.Add(L.S($"✔ {_gpu.GenerationCn}（OptiScaler 路线自动适配：50 系用原版 runtime，20/30/40 系用跨代补丁版）",
+                               $"✔ {_gpu.GenerationCn} (OptiScaler route auto-adapts: 50 series uses the original runtime, 20/30/40 series the cross-gen patched build)"));
+
+            if (_gpu.IsNvidia && !_gpu.DriverOk)
+                checks.Add(L.S("✘ 驱动过低：DLSS5 神经渲染需要 616.56+，请先更新驱动",
+                               "✘ Driver too old: DLSS5 neural rendering needs 616.56+ — update your driver first"));
+            else if (_gpu.IsNvidia)
+                checks.Add(L.S("✔ 驱动版本满足要求（≥ 616.56）", "✔ Driver meets the requirement (≥ 616.56)"));
+
+            var msfsLocked = _game2024 != null && UnlockedInstaller.CoreFileLocked(_game2024.GameDir);
+            var xpLocked = _gameXp12 != null && XP12Installer.CoreFileLocked(_gameXp12.GameDir);
+            if (msfsLocked || xpLocked)
+                checks.Add(L.S("⚠ 游戏文件被占用（游戏未完全关闭或残留僵尸进程），请关闭游戏后重试",
+                               "⚠ Game files are locked (game not fully closed or leftover processes) — close the game and retry"));
+            else
+                checks.Add(L.S("✔ 游戏文件未被占用", "✔ Game files are not locked"));
+
+            if (_game2024 == null && _gameXp12 == null)
+                checks.Add(L.S("✘ 未定位到任何支持的游戏", "✘ No supported game located"));
+            _home.SetChecks(string.Join(Environment.NewLine, checks), checks.All(c => c.StartsWith('✔')));
+
+            if (_gpu.SupportedThisVersion) _about.SetRecommendedScale(_gpu.RecommendedWorkingScale);
+        }
+        catch (Exception ex)
+        {
+            Log(L.S("检测失败: ", "Detection failed: ") + ex.Message);
+        }
+        finally
+        {
+            _home.SetBusy(false);
+        }
+    }
+
+    private void UpdateMsfs2024Card()
+    {
+        if (_game2024 == null)
+        {
+            _home.SetCard(HomePage.CardMsfs2024,
+                L.S("未检测到安装", "Not detected"),
+                L.S("可点击「手动指定目录...」选择包含 FlightSimulator2024.exe 的文件夹。",
+                    "Click \"Browse Folder...\" and pick the folder containing FlightSimulator2024.exe."),
+                canInstall: false, canUninstall: false, canOpen: false);
+            return;
+        }
+
+        var state = UnlockedInstaller.DetectState(_game2024.GameDir);
+        var aa = UserCfg.ReadAntiAliasing(UserCfg.PathFor(_game2024.ExeName) ?? "");
+        var stateText = $"{state}   |   " + L.S($"游戏抗锯齿: {aa ?? "未知"}（需为 DLSS/DLAA）",
+                                                $"In-game AA: {aa ?? "unknown"} (must be DLSS/DLAA)");
+        var locked = UnlockedInstaller.CoreFileLocked(_game2024.GameDir);
+        var canInstall = _gpu.SupportedThisVersion && _gpu.DriverOk && !locked;
+        var canUninstall = !locked &&
+            (File.Exists(Path.Combine(_game2024.GameDir, "OptiScaler.ini")) || UnlockedInstaller.LoadManifest() != null);
+        _home.SetCard(HomePage.CardMsfs2024, stateText,
+            $"{_game2024.GameDir}   [{_game2024.Source}]", canInstall, canUninstall, canOpen: true);
+    }
+
+    private void UpdateMsfs2020Card()
+    {
+        _home.SetCard(HomePage.CardMsfs2020,
+            _game2020 != null
+                ? L.S("检测到，本版本暂不支持（DX11 渲染器限制），敬请期待后续版本。",
+                      "Detected, but not supported in this version (DX11 renderer limit) — coming in a future release.")
+                : L.S("未检测到。", "Not detected."),
+            _game2020?.GameDir ?? "", canInstall: false, canUninstall: false, canOpen: _game2020 != null);
+    }
+
+    private void UpdateXp12Card()
+    {
+        if (_gameXp12 == null)
+        {
+            _home.SetCard(HomePage.CardXp12, L.S("未检测到安装", "Not detected"), "",
+                canInstall: false, canUninstall: false, canOpen: false);
+            return;
+        }
+
+        var state = XP12Installer.DetectState(_gameXp12.GameDir);
+        var locked = XP12Installer.CoreFileLocked(_gameXp12.GameDir);
+        var kit = Directory.Exists(AppConfig.KitDir) ? AppConfig.KitDir : L.S("未选择", "not selected");
+        var canInstall = !locked && Directory.Exists(AppConfig.KitDir);
+        var canUninstall = !locked &&
+            (File.Exists(Path.Combine(_gameXp12.GameDir, "dlss5-feed.addon64")) || XP12Installer.LoadManifest() != null);
+        _home.SetCard(HomePage.CardXp12, state,
+            $"{_gameXp12.GameDir}   [{_gameXp12.Source}]   |   " + L.S($"组件包: {kit}", $"Kit: {kit}"),
+            canInstall, canUninstall, canOpen: true);
+    }
+
+    private void BrowseForGame()
+    {
+        using var dlg = new FolderBrowserDialog { Description = L.S("选择包含 FlightSimulator2024.exe 的文件夹", "Pick the folder containing FlightSimulator2024.exe") };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var g = GameLocator.FromManualDir(dlg.SelectedPath, GameLocator.Targets[0].ExeName);
+        if (g == null)
+        {
+            MessageBox.Show(this, L.S("所选目录中未找到 FlightSimulator2024.exe", "FlightSimulator2024.exe was not found in the selected folder"),
+                L.S("无效目录", "Invalid folder"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        _game2024 = g;
+        _ = RefreshAsync();
+    }
+
+    private void PickKitDir()
+    {
+        using var dlg = new FolderBrowserDialog
+        {
+            Description = L.S("选择 DLSS5-Feeder 组件包目录（含 dlss5-feed.addon64、deep-fried-chicken.addon64、nvngx_dlss*.dll、reshade-shaders）",
+                              "Pick the DLSS5-Feeder kit folder (must contain dlss5-feed.addon64, deep-fried-chicken.addon64, nvngx_dlss*.dll and reshade-shaders)"),
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        var missing = XP12Installer.RequiredKitFiles
+            .Where(f => !File.Exists(Path.Combine(dlg.SelectedPath, f))).ToList();
+        if (missing.Count > 0)
+        {
+            MessageBox.Show(this, L.S("组件包不完整，缺少：", "The kit is incomplete, missing:") + "\n" + string.Join("\n", missing),
+                L.S("无效组件包", "Invalid kit"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        AppConfig.KitDir = dlg.SelectedPath;
+        AppConfig.Save();
+        _ = RefreshAsync();
+    }
+
+    // ───────────────────────────── MSFS 安装 / 卸载 ─────────────────────────────
+
+    private async Task InstallMsfsAsync()
+    {
+        if (_game2024 == null) return;
+        if (!_gpu.SupportedThisVersion || !_gpu.DriverOk)
+        {
+            MessageBox.Show(this,
+                L.S("当前 GPU 或驱动不满足要求（需 RTX 20-50 系、驱动 ≥ 616.56）。",
+                    "Your GPU or driver does not meet the requirements (RTX 20-50 series and driver ≥ 616.56 required)."),
+                L.S("无法安装", "Cannot install"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var confirm = MessageBox.Show(this,
+            L.S("即将为 MSFS 2024 安装 DLSS5 神经渲染（DLSS Unlocked / OptiScaler 路线）。\n\n" +
+                "• 自动下载约 460MB 组件包并校验\n" +
+                "• 自动备份被修改的文件与配置，可一键回滚\n" +
+                "• 安装后：游戏内按 Insert 键打开 OptiScaler 菜单\n\n" +
+                "是否继续？",
+                "About to install DLSS5 neural rendering for MSFS 2024 (DLSS Unlocked / OptiScaler route).\n\n" +
+                "• Downloads and verifies a ~460MB component package\n" +
+                "• Automatically backs up modified files and configs — one-click rollback\n" +
+                "• After install: press Insert in game to open the OptiScaler menu\n\n" +
+                "Continue?"),
+            L.S("确认安装", "Confirm Installation"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (confirm != DialogResult.Yes) return;
+
+        _home.SetBusy(true, L.S("准备...", "Preparing..."));
+        try
+        {
+            var progress = new Progress<(long received, long total)>(t => _home.SetProgress(t.received, t.total));
+
+            await UnlockedInstaller.InstallAsync(new UnlockedInstaller.InstallOptions
+            {
+                GameDir = _game2024.GameDir,
+                ExeName = _game2024.ExeName,
+                WorkingScale = _about.WorkingScale,
+                Generation = _gpu.Generation,
+                Proxy = _about.Proxy,
+                Log = Log,
+                Progress = progress,
+            });
+
+            Log("──────────────────────────────");
+            Log(L.S("安装完成！使用方法：", "Installation complete! How to use:"));
+            Log(L.S("1. 启动游戏，进入飞行（抗锯齿需为 DLSS）", "1. Launch the game and start a flight (Anti-Aliasing must be DLSS)"));
+            Log(L.S("2. 按 Insert 键打开 OptiScaler 菜单", "2. Press Insert to open the OptiScaler menu"));
+            Log(L.S("3. 展开「DLSS Neural Rendering」→ 应显示 Running - xx ms per frame",
+                    "3. Expand \"DLSS Neural Rendering\" → it should show Running - xx ms per frame"));
+            Log(L.S("4. 帧数吃紧 → 调低 Model resolution；画面过猛 → 调低 Detail strength",
+                    "4. Low FPS → lower Model resolution; too aggressive → lower Detail strength"));
+            MessageBox.Show(this,
+                L.S("安装完成！\n\n启动游戏后按 Insert 键打开 OptiScaler 菜单，\n展开 DLSS Neural Rendering 查看运行状态（应显示 Running）。",
+                    "Installation complete!\n\nIn game, press Insert to open the OptiScaler menu,\nthen expand DLSS Neural Rendering to check its status (it should show Running)."),
+                L.S("完成", "Done"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Log(L.S("安装失败: ", "Installation failed: ") + ex.Message);
+            MessageBox.Show(this, L.S("安装失败：", "Installation failed: ") + ex.Message,
+                L.S("错误", "Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            _home.SetBusy(false);
+            await RefreshAsync();
+        }
+    }
+
+    private async Task UninstallMsfsAsync()
+    {
+        if (_game2024 == null) return;
+        if (MessageBox.Show(this,
+                L.S("将删除本工具安装的全部文件并恢复游戏配置。\n是否继续？",
+                    "This will remove all files installed by this tool and restore the game's configuration.\nContinue?"),
+                L.S("确认卸载", "Confirm Uninstallation"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+
+        _home.SetBusy(true, L.S("卸载中...", "Uninstalling..."));
+        try
+        {
+            await Task.Run(() => UnlockedInstaller.Uninstall(_game2024.GameDir, Log));
+            Log(L.S("卸载完成。", "Uninstalled."));
+        }
+        catch (Exception ex)
+        {
+            Log(L.S("卸载失败: ", "Uninstall failed: ") + ex.Message);
+        }
+        finally
+        {
+            _home.SetBusy(false);
+            await RefreshAsync();
+        }
+    }
+
+    // ───────────────────────────── XP12 安装 / 卸载 ─────────────────────────────
+
+    private async Task InstallXp12Async()
+    {
+        if (_gameXp12 == null) return;
+        if (!Directory.Exists(AppConfig.KitDir))
+        {
+            MessageBox.Show(this,
+                L.S("请先在 XP12 卡片点击「选择组件包...」指定组件包目录。",
+                    "Click \"Select Kit...\" on the XP12 card to choose the kit folder first."),
+                L.S("缺少组件包", "Kit required"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var confirm = MessageBox.Show(this,
+            L.S("即将为 X-Plane 12 安装 DLSS5（DLSS5-Feeder 路线：合成 DLSS 契约 + 运动矢量估算 + 神经渲染）。\n\n" +
+                "• 注册 ReShade Vulkan 隐式层（机器级）并安装 Feeder/消费者组件\n" +
+                "• 运动矢量为着色器估算，快速移动视角会有重影（方案固有特性）\n" +
+                "• 安装后：游戏内按 Home 键确认 MotionEstimation 与 DLSS5_Feed 已启用\n\n" +
+                "是否继续？",
+                "About to install DLSS5 for X-Plane 12 (DLSS5-Feeder route: synthesized DLSS contract + estimated motion vectors + neural rendering).\n\n" +
+                "• Registers the ReShade Vulkan implicit layer (machine-wide) and installs Feeder/consumer components\n" +
+                "• Motion vectors are shader-estimated; fast camera moves show ghosting (inherent to the approach)\n" +
+                "• After install: press Home in game to verify MotionEstimation and DLSS5_Feed are enabled\n\n" +
+                "Continue?"),
+            L.S("确认安装", "Confirm Installation"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (confirm != DialogResult.Yes) return;
+
+        _home.SetBusy(true, L.S("XP12 安装中...", "Installing for XP12..."));
+        try
+        {
+            await XP12Installer.InstallAsync(new XP12Installer.InstallOptions
+            {
+                GameDir = _gameXp12.GameDir,
+                ExePath = _gameXp12.ExePath,
+                KitDir = AppConfig.KitDir,
+                Proxy = _about.Proxy,
+                Log = Log,
+            });
+            MessageBox.Show(this,
+                L.S("安装完成！\n\n启动 X-Plane 后按 Home 键打开 ReShade，\n确认 MotionEstimation 与 DLSS5_Feed 已启用；\nDeep Fried Chicken 标签应显示 standalone neural pipeline active。",
+                    "Installation complete!\n\nLaunch X-Plane, press Home to open ReShade,\nverify MotionEstimation and DLSS5_Feed are enabled;\nthe Deep Fried Chicken tab should show standalone neural pipeline active."),
+                L.S("完成", "Done"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Log(L.S("安装失败: ", "Installation failed: ") + ex.Message);
+            MessageBox.Show(this, L.S("安装失败：", "Installation failed: ") + ex.Message,
+                L.S("错误", "Error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            _home.SetBusy(false);
+            await RefreshAsync();
+        }
+    }
+
+    private async Task UninstallXp12Async()
+    {
+        if (_gameXp12 == null) return;
+        if (MessageBox.Show(this,
+                L.S("将删除 XP12 中本工具安装的全部文件、注销 Vulkan 层并恢复原状。\n是否继续？",
+                    "This will remove all files installed by this tool in XP12, unregister the Vulkan layer and restore the original state.\nContinue?"),
+                L.S("确认卸载", "Confirm Uninstallation"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+
+        _home.SetBusy(true, L.S("卸载中...", "Uninstalling..."));
+        try
+        {
+            await Task.Run(() => XP12Installer.Uninstall(_gameXp12.GameDir, _gameXp12.ExePath, Log));
+            Log(L.S("XP12 卸载完成。", "XP12 uninstalled."));
+        }
+        catch (Exception ex)
+        {
+            Log(L.S("卸载失败: ", "Uninstall failed: ") + ex.Message);
+        }
+        finally
+        {
+            _home.SetBusy(false);
+            await RefreshAsync();
+        }
+    }
+}

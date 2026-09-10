@@ -1,0 +1,34 @@
+# Build outputs
+bin/
+obj/
+publish/
+artifacts/
+
+# Local component packages & downloads (large, third-party binaries)
+网络资源/
+downloads/
+
+# Local machine artifacts
+backup_*/
+install_manifest.txt
+dlss_unlocked_manifest.txt
+unlocked_files.json
+卸载回滚*.bat
+
+# Experiment log (kept local only)
+项目实验记录.md
+
+# Screenshots are referenced by README but re-captured locally
+# (docs/screenshots IS committed — only the raw captures above are ignored)
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.user
+Thumbs.db
+desktop.ini
+
+# Local session artifacts
+.zcode/
+make_rollback.py
