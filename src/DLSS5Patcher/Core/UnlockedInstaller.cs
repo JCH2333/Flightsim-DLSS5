@@ -254,7 +254,9 @@ public static class UnlockedInstaller
             log(L.S("UserCfg.opt 已从备份恢复。", "UserCfg.opt restored from backup."));
         }
 
-        if (File.Exists(ManifestPath)) File.Delete(ManifestPath);
+        // 仅当清单属于本目录时才删除（清单可能记录的是另一代 MSFS，如 2024/2020 共存时）
+        if (manifest != null && manifest.GameDir.Equals(gameDir, StringComparison.OrdinalIgnoreCase) && File.Exists(ManifestPath))
+            File.Delete(ManifestPath);
         return (n, dirs.Count);
     }
 

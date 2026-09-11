@@ -128,25 +128,14 @@ public sealed class MainForm : Form
     private void WireEvents()
     {
         _home.RefreshRequested += () => _ = RefreshAsync();
-        _home.MsfsInstallRequested += () => _ = InstallMsfsAsync();
-        _home.MsfsUninstallRequested += () => _ = UninstallMsfsAsync();
-        _home.MsfsBrowseRequested += BrowseForGame;
+        _home.MsfsInstallRequested += () => _ = InstallMsfsAsync(_game2024, beta: false);
+        _home.MsfsUninstallRequested += () => _ = UninstallMsfsAsync(_game2024, beta: false);
+        _home.Msfs2020InstallRequested += () => _ = InstallMsfsAsync(_game2020, beta: true);
+        _home.Msfs2020UninstallRequested += () => _ = UninstallMsfsAsync(_game2020, beta: true);
         _home.XpInstallRequested += () => _ = InstallXp12Async();
         _home.XpUninstallRequested += () => _ = UninstallXp12Async();
-        _home.XpPickKitRequested += PickKitDir;
-        _home.OpenFolderRequested += OpenGameDir;
-    }
-
-    private void OpenGameDir(int cardIdx)
-    {
-        var dir = cardIdx switch
-        {
-            HomePage.CardMsfs2024 => _game2024?.GameDir,
-            HomePage.CardMsfs2020 => _game2020?.GameDir,
-            HomePage.CardXp12 => _gameXp12?.GameDir,
-            _ => null,
-        };
-        if (dir != null) System.Diagnostics.Process.Start("explorer.exe", dir);
+        _about.MsfsBrowseRequested += BrowseForGame;
+        _about.XpPickKitRequested += PickKitDir;
     }
 
     private void Log(string s) => _home.Log(s);
@@ -193,18 +182,23 @@ public sealed class MainForm : Form
                 checks.Add(L.S("✔ 驱动版本满足要求（≥ 616.56）", "✔ Driver meets the requirement (≥ 616.56)"));
 
             var msfsLocked = _game2024 != null && UnlockedInstaller.CoreFileLocked(_game2024.GameDir);
+            var msfs2020Locked = _game2020 != null && UnlockedInstaller.CoreFileLocked(_game2020.GameDir);
             var xpLocked = _gameXp12 != null && XP12Installer.CoreFileLocked(_gameXp12.GameDir);
-            if (msfsLocked || xpLocked)
+            if (msfsLocked || msfs2020Locked || xpLocked)
                 checks.Add(L.S("⚠ 游戏文件被占用（游戏未完全关闭或残留僵尸进程），请关闭游戏后重试",
                                "⚠ Game files are locked (game not fully closed or leftover processes) — close the game and retry"));
             else
                 checks.Add(L.S("✔ 游戏文件未被占用", "✔ Game files are not locked"));
 
-            if (_game2024 == null && _gameXp12 == null)
+            if (_game2024 == null && _game2020 == null && _gameXp12 == null)
                 checks.Add(L.S("✘ 未定位到任何支持的游戏", "✘ No supported game located"));
             _home.SetChecks(string.Join(Environment.NewLine, checks), checks.All(c => c.StartsWith('✔')));
 
             if (_gpu.SupportedThisVersion) _about.SetRecommendedScale(_gpu.RecommendedWorkingScale);
+
+            _about.SetManualPaths(
+                _game2024 != null ? $"{_game2024.GameDir}   [{_game2024.Source}]" : L.S("未检测到（可点击右侧按钮手动指定）", "Not detected (use the button on the right to browse)"),
+                Directory.Exists(AppConfig.KitDir) ? AppConfig.KitDir : L.S("未选择（XP12 安装前需先指定）", "Not selected (required before installing to XP12)"));
         }
         catch (Exception ex)
         {
@@ -222,9 +216,9 @@ public sealed class MainForm : Form
         {
             _home.SetCard(HomePage.CardMsfs2024,
                 L.S("未检测到安装", "Not detected"),
-                L.S("可点击「手动指定目录...」选择包含 FlightSimulator2024.exe 的文件夹。",
-                    "Click \"Browse Folder...\" and pick the folder containing FlightSimulator2024.exe."),
-                canInstall: false, canUninstall: false, canOpen: false);
+                L.S("未检测到安装。可在设置页「手动配置」中手动指定游戏目录。",
+                    "No installation detected. You can set the game folder under \"Manual setup\" in Settings."),
+                canInstall: false, canUninstall: false);
             return;
         }
 
@@ -237,17 +231,31 @@ public sealed class MainForm : Form
         var canUninstall = !locked &&
             (File.Exists(Path.Combine(_game2024.GameDir, "OptiScaler.ini")) || UnlockedInstaller.LoadManifest() != null);
         _home.SetCard(HomePage.CardMsfs2024, stateText,
-            $"{_game2024.GameDir}   [{_game2024.Source}]", canInstall, canUninstall, canOpen: true);
+            $"{_game2024.GameDir}   [{_game2024.Source}]", canInstall, canUninstall);
     }
 
     private void UpdateMsfs2020Card()
     {
-        _home.SetCard(HomePage.CardMsfs2020,
-            _game2020 != null
-                ? L.S("检测到，本版本暂不支持（DX11 渲染器限制），敬请期待后续版本。",
-                      "Detected, but not supported in this version (DX11 renderer limit) — coming in a future release.")
-                : L.S("未检测到。", "Not detected."),
-            _game2020?.GameDir ?? "", canInstall: false, canUninstall: false, canOpen: _game2020 != null);
+        if (_game2020 == null)
+        {
+            _home.SetCard(HomePage.CardMsfs2020,
+                L.S("未检测到安装", "Not detected"),
+                L.S("未检测到安装。可在设置页「手动配置」中手动指定游戏目录。",
+                    "No installation detected. You can set the game folder under \"Manual setup\" in Settings."),
+                canInstall: false, canUninstall: false);
+            return;
+        }
+
+        var state = UnlockedInstaller.DetectState(_game2020.GameDir);
+        var aa = UserCfg.ReadAntiAliasing(UserCfg.PathFor(_game2020.ExeName) ?? "");
+        var stateText = $"{state}   |   " + L.S($"游戏抗锯齿: {aa ?? "未知"}（需为 DLSS/DLAA）",
+                                                $"In-game AA: {aa ?? "unknown"} (must be DLSS/DLAA)");
+        var locked = UnlockedInstaller.CoreFileLocked(_game2020.GameDir);
+        var canInstall = _gpu.SupportedThisVersion && _gpu.DriverOk && !locked;
+        var canUninstall = !locked &&
+            (File.Exists(Path.Combine(_game2020.GameDir, "OptiScaler.ini")) || UnlockedInstaller.LoadManifest() != null);
+        _home.SetCard(HomePage.CardMsfs2020, stateText,
+            $"{_game2020.GameDir}   [{_game2020.Source}]", canInstall, canUninstall);
     }
 
     private void UpdateXp12Card()
@@ -255,7 +263,7 @@ public sealed class MainForm : Form
         if (_gameXp12 == null)
         {
             _home.SetCard(HomePage.CardXp12, L.S("未检测到安装", "Not detected"), "",
-                canInstall: false, canUninstall: false, canOpen: false);
+                canInstall: false, canUninstall: false);
             return;
         }
 
@@ -267,7 +275,7 @@ public sealed class MainForm : Form
             (File.Exists(Path.Combine(_gameXp12.GameDir, "dlss5-feed.addon64")) || XP12Installer.LoadManifest() != null);
         _home.SetCard(HomePage.CardXp12, state,
             $"{_gameXp12.GameDir}   [{_gameXp12.Source}]   |   " + L.S($"组件包: {kit}", $"Kit: {kit}"),
-            canInstall, canUninstall, canOpen: true);
+            canInstall, canUninstall);
     }
 
     private void BrowseForGame()
@@ -306,11 +314,11 @@ public sealed class MainForm : Form
         _ = RefreshAsync();
     }
 
-    // ───────────────────────────── MSFS 安装 / 卸载 ─────────────────────────────
+    // ───────────────────────────── MSFS 安装 / 卸载（2024 正式版；2020 Beta，流程相同） ─────────────────────────────
 
-    private async Task InstallMsfsAsync()
+    private async Task InstallMsfsAsync(GameInstall? game, bool beta)
     {
-        if (_game2024 == null) return;
+        if (game == null) return;
         if (!_gpu.SupportedThisVersion || !_gpu.DriverOk)
         {
             MessageBox.Show(this,
@@ -320,16 +328,24 @@ public sealed class MainForm : Form
             return;
         }
 
+        var name = beta ? L.S("MSFS 2020（Beta 实验版）", "MSFS 2020 (Beta, experimental)")
+                        : L.S("MSFS 2024", "MSFS 2024");
+        var betaNote = beta
+            ? L.S("• ⚠ Beta 实验功能：流程与 2024 完全相同，但尚未经过 MSFS 2020 实机测试\n",
+                  "• ⚠ BETA, experimental: identical flow to 2024, but not yet field-tested on MSFS 2020\n")
+            : "";
         var confirm = MessageBox.Show(this,
-            L.S("即将为 MSFS 2024 安装 DLSS5 神经渲染（DLSS Unlocked / OptiScaler 路线）。\n\n" +
+            L.S($"即将为 {name} 安装 DLSS5 神经渲染（DLSS Unlocked / OptiScaler 路线）。\n\n" +
                 "• 自动下载约 460MB 组件包并校验\n" +
                 "• 自动备份被修改的文件与配置，可一键回滚\n" +
-                "• 安装后：游戏内按 Insert 键打开 OptiScaler 菜单\n\n" +
+                "• 安装后：游戏内按 Insert 键打开 OptiScaler 菜单\n" +
+                betaNote + "\n" +
                 "是否继续？",
-                "About to install DLSS5 neural rendering for MSFS 2024 (DLSS Unlocked / OptiScaler route).\n\n" +
+                $"About to install DLSS5 neural rendering for {name} (DLSS Unlocked / OptiScaler route).\n\n" +
                 "• Downloads and verifies a ~460MB component package\n" +
                 "• Automatically backs up modified files and configs — one-click rollback\n" +
-                "• After install: press Insert in game to open the OptiScaler menu\n\n" +
+                "• After install: press Insert in game to open the OptiScaler menu\n" +
+                betaNote + "\n" +
                 "Continue?"),
             L.S("确认安装", "Confirm Installation"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (confirm != DialogResult.Yes) return;
@@ -341,8 +357,8 @@ public sealed class MainForm : Form
 
             await UnlockedInstaller.InstallAsync(new UnlockedInstaller.InstallOptions
             {
-                GameDir = _game2024.GameDir,
-                ExeName = _game2024.ExeName,
+                GameDir = game.GameDir,
+                ExeName = game.ExeName,
                 WorkingScale = _about.WorkingScale,
                 Generation = _gpu.Generation,
                 Proxy = _about.Proxy,
@@ -358,6 +374,8 @@ public sealed class MainForm : Form
                     "3. Expand \"DLSS Neural Rendering\" → it should show Running - xx ms per frame"));
             Log(L.S("4. 帧数吃紧 → 调低 Model resolution；画面过猛 → 调低 Detail strength",
                     "4. Low FPS → lower Model resolution; too aggressive → lower Detail strength"));
+            if (beta) Log(L.S("（MSFS 2020 为 Beta 实验功能，如有异常请一键卸载并在粉丝群反馈）",
+                              "(MSFS 2020 support is BETA — if anything misbehaves, uninstall and report in the fan group)"));
             MessageBox.Show(this,
                 L.S("安装完成！\n\n启动游戏后按 Insert 键打开 OptiScaler 菜单，\n展开 DLSS Neural Rendering 查看运行状态（应显示 Running）。",
                     "Installation complete!\n\nIn game, press Insert to open the OptiScaler menu,\nthen expand DLSS Neural Rendering to check its status (it should show Running)."),
@@ -376,9 +394,9 @@ public sealed class MainForm : Form
         }
     }
 
-    private async Task UninstallMsfsAsync()
+    private async Task UninstallMsfsAsync(GameInstall? game, bool beta)
     {
-        if (_game2024 == null) return;
+        if (game == null) return;
         if (MessageBox.Show(this,
                 L.S("将删除本工具安装的全部文件并恢复游戏配置。\n是否继续？",
                     "This will remove all files installed by this tool and restore the game's configuration.\nContinue?"),
@@ -388,7 +406,7 @@ public sealed class MainForm : Form
         _home.SetBusy(true, L.S("卸载中...", "Uninstalling..."));
         try
         {
-            await Task.Run(() => UnlockedInstaller.Uninstall(_game2024.GameDir, Log));
+            await Task.Run(() => UnlockedInstaller.Uninstall(game.GameDir, Log));
             Log(L.S("卸载完成。", "Uninstalled."));
         }
         catch (Exception ex)

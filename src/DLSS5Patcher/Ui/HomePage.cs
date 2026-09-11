@@ -3,7 +3,8 @@ using DLSS5Patcher.Core;
 namespace DLSS5Patcher.Ui;
 
 /// <summary>
-/// 首页：GPU 状态头 + 三张游戏卡片（MSFS 2024 / MSFS 2020 / XP12）+ 进度与日志。
+/// 首页：GPU 状态头 + 三张游戏卡片（MSFS 2024 / MSFS 2020 Beta / XP12）+ 进度与日志。
+/// 卡片只保留「一键安装」「卸载」两个按钮；手动指定目录 / 选择组件包在设置页「手动配置」。
 /// 业务逻辑在 MainForm，本控件只负责展示与转发点击事件。
 /// </summary>
 public sealed class HomePage : UserControl
@@ -11,11 +12,10 @@ public sealed class HomePage : UserControl
     public event Action? RefreshRequested;
     public event Action? MsfsInstallRequested;
     public event Action? MsfsUninstallRequested;
-    public event Action? MsfsBrowseRequested;
+    public event Action? Msfs2020InstallRequested;
+    public event Action? Msfs2020UninstallRequested;
     public event Action? XpInstallRequested;
     public event Action? XpUninstallRequested;
-    public event Action? XpPickKitRequested;
-    public event Action<int>? OpenFolderRequested;   // 参数为卡片索引
 
     public const int CardMsfs2024 = 0;
     public const int CardMsfs2020 = 1;
@@ -30,8 +30,6 @@ public sealed class HomePage : UserControl
     private readonly Label[] _cardPath = new Label[3];
     private readonly Button[] _btnInstall = new Button[3];
     private readonly Button[] _btnUninstall = new Button[3];
-    private readonly Button[] _btnOpen = new Button[3];
-    private readonly Button[] _btnExtra = new Button[3];
     private Button _btnRefresh = new();
     private readonly List<Button> _allButtons = new();
     private readonly ProgressBar _progress = new();
@@ -59,7 +57,7 @@ public sealed class HomePage : UserControl
         Controls.Add(_lblChecks);
 
         BuildCard(CardMsfs2024, L.S("微软模拟飞行 2024", "Microsoft Flight Simulator 2024"), L.S("OptiScaler · DLSS Unlocked 路线", "OptiScaler · DLSS Unlocked route"), 140);
-        BuildCard(CardMsfs2020, L.S("微软模拟飞行 2020", "Microsoft Flight Simulator 2020"), L.S("占位 · DX11 渲染器限制，暂不支持", "Placeholder · DX11 renderer limit, not yet supported"), 282);
+        BuildCard(CardMsfs2020, L.S("微软模拟飞行 2020", "Microsoft Flight Simulator 2020"), L.S("Beta · 实验性支持（流程同 2024，未实测）", "Beta · experimental (same flow as 2024, untested)"), 282);
         BuildCard(CardXp12, "X-Plane 12", L.S("DLSS5-Feeder · Vulkan 路线", "DLSS5-Feeder · Vulkan route"), 424);
 
         _progress.Location = new Point(24, 568);
@@ -107,12 +105,12 @@ public sealed class HomePage : UserControl
         {
             Text = tag,
             AutoSize = false,
-            Size = new Size(340, 20),
+            Size = new Size(380, 20),
             TextAlign = ContentAlignment.MiddleRight,
-            ForeColor = Theme.TextMuted,
+            ForeColor = idx == CardMsfs2020 ? Theme.Warning : Theme.TextMuted,
             Font = new Font("Microsoft YaHei UI", 8f),
         };
-        lblTag.Location = new Point(ContentW - 340 - 16, 14);
+        lblTag.Location = new Point(ContentW - 380 - 16, 14);
         card.Controls.Add(lblTag);
 
         var lblState = new Label
@@ -144,53 +142,33 @@ public sealed class HomePage : UserControl
         btnInstall.Location = new Point(16, 90);
         btnInstall.Click += (_, _) =>
         {
-            if (idx == CardXp12) XpInstallRequested?.Invoke();
-            else MsfsInstallRequested?.Invoke();
+            switch (idx)
+            {
+                case CardMsfs2024: MsfsInstallRequested?.Invoke(); break;
+                case CardMsfs2020: Msfs2020InstallRequested?.Invoke(); break;
+                case CardXp12: XpInstallRequested?.Invoke(); break;
+            }
         };
         _btnInstall[idx] = btnInstall;
         card.Controls.Add(btnInstall);
 
-        var btnUninstall = Theme.MakeButton(L.S("卸载", "Uninstall"));
-        btnUninstall.Size = new Size(96, 32);
+        var btnUninstall = Theme.MakeButton(L.S("一键卸载", "Uninstall"));
+        btnUninstall.Size = new Size(110, 32);
         btnUninstall.Location = new Point(134, 90);
         btnUninstall.Click += (_, _) =>
         {
-            if (idx == CardXp12) XpUninstallRequested?.Invoke();
-            else MsfsUninstallRequested?.Invoke();
+            switch (idx)
+            {
+                case CardMsfs2024: MsfsUninstallRequested?.Invoke(); break;
+                case CardMsfs2020: Msfs2020UninstallRequested?.Invoke(); break;
+                case CardXp12: XpUninstallRequested?.Invoke(); break;
+            }
         };
         _btnUninstall[idx] = btnUninstall;
         card.Controls.Add(btnUninstall);
 
-        var btnOpen = Theme.MakeButton(L.S("打开目录", "Open Folder"));
-        btnOpen.Size = new Size(110, 32);
-        btnOpen.Location = new Point(238, 90);
-        btnOpen.Click += (_, _) => OpenFolderRequested?.Invoke(idx);
-        _btnOpen[idx] = btnOpen;
-        card.Controls.Add(btnOpen);
-
-        // 右侧附加按钮：2024 = 手动指定目录；XP12 = 选择组件包
-        if (idx == CardMsfs2024 || idx == CardXp12)
-        {
-            var btnExtra = Theme.MakeButton(idx == CardMsfs2024 ? L.S("手动指定目录...", "Browse Folder...") : L.S("选择组件包...", "Select Kit..."));
-            btnExtra.Size = new Size(150, 32);
-            btnExtra.Location = new Point(ContentW - 150 - 16, 90);
-            btnExtra.Click += (_, _) => { if (idx == CardMsfs2024) MsfsBrowseRequested?.Invoke(); else XpPickKitRequested?.Invoke(); };
-            _btnExtra[idx] = btnExtra;
-            _allButtons.Add(btnExtra);
-            card.Controls.Add(btnExtra);
-        }
-
-        // 2020 卡片：安装按钮置灰并改文案，隐藏卸载
-        if (idx == CardMsfs2020)
-        {
-            btnInstall.Text = L.S("暂不支持", "N/A yet");
-            btnInstall.Enabled = false;
-            btnUninstall.Visible = false;
-        }
-
         _allButtons.Add(btnInstall);
         _allButtons.Add(btnUninstall);
-        _allButtons.Add(btnOpen);
 
         Controls.Add(card);
     }
@@ -215,23 +193,16 @@ public sealed class HomePage : UserControl
     }
 
     /// <summary>更新卡片内容与按钮真实可用性（检测完成后调用）。</summary>
-    public void SetCard(int idx, string state, string path, bool canInstall, bool canUninstall, bool canOpen)
+    public void SetCard(int idx, string state, string path, bool canInstall, bool canUninstall)
     {
         _cardState[idx].Text = L.S("状态：", "Status: ") + state;
         _cardState[idx].ForeColor = StateColor(state);
         _cardPath[idx].Text = string.IsNullOrEmpty(path) ? L.S("未检测到安装。", "No installation detected.") : path;
-        if (idx != CardMsfs2020)
-        {
-            _btnInstall[idx].Enabled = canInstall;
-            _btnUninstall[idx].Enabled = canUninstall;
-        }
-        _btnOpen[idx].Enabled = canOpen;
+        _btnInstall[idx].Enabled = canInstall;
+        _btnUninstall[idx].Enabled = canUninstall;
     }
 
-    /// <summary>
-    /// 忙碌时禁用全部按钮并显示进度。结束时只隐藏进度条：
-    /// 各按钮的可用性随后由 SetBusy 调用方通过 SetCard / 恢复逻辑矫正。
-    /// </summary>
+    /// <summary>忙碌时禁用全部按钮并显示进度；结束时隐藏进度条并恢复「重新检测」。</summary>
     public void SetBusy(bool busy, string? status = null)
     {
         if (busy)
@@ -249,9 +220,7 @@ public sealed class HomePage : UserControl
         {
             _progress.Visible = false;
             _lblProgress.Visible = false;
-            _btnRefresh.Enabled = true;               // 重新检测始终恢复可用
-            _btnExtra[CardMsfs2024].Enabled = true;   // 手动指定目录始终可用
-            _btnExtra[CardXp12].Enabled = true;       // 选择组件包始终可用
+            _btnRefresh.Enabled = true;
         }
     }
 

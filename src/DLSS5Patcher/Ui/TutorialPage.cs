@@ -1,4 +1,4 @@
-using DLSS5Patcher.Core;
+﻿using DLSS5Patcher.Core;
 
 namespace DLSS5Patcher.Ui;
 
@@ -71,9 +71,20 @@ public sealed class TutorialPage : UserControl
                  "6. Tuning: low FPS → lower Model resolution; over-sharpened image → lower Detail strength."));
         Line(L.S("7. 游戏内如出现「Update v0.9.4」更新提示，请勿点击（主线版本不含神经渲染，会覆盖补丁）。",
                  "7. If the OptiScaler menu offers \"Update v0.9.4\", do NOT accept (the mainline build lacks neural rendering and would overwrite the patch)."));
+        Line(L.S("8. 检测不到游戏目录时，可在「设置 / 关于」页的「手动配置」中手动指定游戏目录。",
+                 "8. If the game folder is not detected, set it manually under \"Manual setup\" on the Settings / About page."));
         Gap();
 
-        Heading(L.S("三、X-Plane 12（DLSS5-Feeder · Vulkan 路线）", "3. X-Plane 12 (DLSS5-Feeder · Vulkan route)"));
+        Heading(L.S("三、微软模拟飞行 2020（Beta 实验性）", "3. Microsoft Flight Simulator 2020 (BETA, experimental)"));
+        Line(L.S("1. 安装流程与 MSFS 2024 完全相同：在 MSFS 2020 卡片点击「一键安装」即可。",
+                 "1. The flow is identical to MSFS 2024: click Install on the MSFS 2020 card."));
+        Line(L.S("2. ⚠ Beta 实验功能：尚未经过 MSFS 2020 实机测试（其 DX11 渲染器可能不兼容），",
+                 "2. ⚠ BETA, experimental: not yet field-tested on MSFS 2020 (its DX11 renderer may be incompatible)."));
+        Line(L.S("   如遇异常请先「一键卸载」还原，并到粉丝群反馈。",
+                 "   If anything misbehaves, use Uninstall to restore and report it in the fan group."));
+        Gap();
+
+        Heading(L.S("四、X-Plane 12（DLSS5-Feeder · Vulkan 路线）", "4. X-Plane 12 (DLSS5-Feeder · Vulkan route)"));
         Line(L.S("1. 在 XP12 卡片点击「选择组件包...」，选中包含以下文件的组件包目录：",
                  "1. On the XP12 card click Select Kit... and choose the kit folder that contains:"));
         Line(L.S("   dlss5-feed.addon64、deep-fried-chicken.addon64、nvngx_dlss*.dll、reshade-shaders 文件夹。",
@@ -94,16 +105,16 @@ public sealed class TutorialPage : UserControl
                  "5. A ~105ms frame time at 4K is normal for X-Plane itself (its own rendering cost); the DLSS5 feed adds only ~1.5ms."));
         Gap();
 
-        Heading(L.S("四、卸载与恢复", "4. Uninstall & Restore"));
+        Heading(L.S("五、卸载与恢复", "5. Uninstall & Restore"));
         Line(L.S("· 各游戏卡片上的「卸载」按钮会删除本工具安装的全部文件、注销注册表项并还原配置。",
                  "· Each game card's Uninstall button removes every file installed by this tool, unregisters registry entries and restores configs."));
         Line(L.S("· 卸载不会动你的存档、插件与官方游戏本体文件（被修改的文件均有备份还原）。",
                  "· Uninstall never touches your saves, add-ons or official game files (everything modified is backed up and restored)."));
         Gap();
 
-        Heading(L.S("五、出问题时应向作者提交的文件", "5. What to Send the Author When Something Goes Wrong"));
-        Line(L.S("安装失败或游戏内不生效时，请在 QQ 群（615523002）提交以下材料：",
-                 "If installation fails or the effect doesn't show in game, please provide the following in the QQ group (615523002):"));
+        Heading(L.S("六、出问题时应向作者提交的文件", "6. What to Send the Author When Something Goes Wrong"));
+        Line(L.S("安装失败或游戏内不生效时，请在 B站 一只剑齿虎呀 粉丝群（QQ 群：615523002）提交以下材料：",
+                 "If installation fails or the effect doesn't show in game, please provide the following in the Bilibili fan group of '一只剑齿虎呀' (QQ group: 615523002):"));
         Line(L.S("1. 本工具主页面日志框的全部内容（点进日志框 Ctrl+A 全选复制）。",
                  "1. The full content of the log box on the tool's main page (click into it, Ctrl+A, copy)."));
         Line(L.S("2. 显卡型号与驱动版本（工具顶部已显示，截图即可）。",
@@ -128,7 +139,7 @@ public sealed class TutorialPage : UserControl
                  "5. Your Windows version (Win10 / Win11)."));
         Gap();
 
-        Heading(L.S("六、常见问题", "6. FAQ"));
+        Heading(L.S("七、常见问题", "7. FAQ"));
         Line(L.S("· 提示「驱动过低」：DLSS5 神经渲染 runtime 要求驱动 ≥ 616.56，先升级驱动。",
                  "· \"Driver too old\": the DLSS5 neural-render runtime needs driver ≥ 616.56 — update first."));
         Line(L.S("· 提示「游戏文件被占用」：游戏未完全关闭或有崩溃残留进程，重启电脑后重试。",

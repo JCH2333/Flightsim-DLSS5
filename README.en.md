@@ -16,7 +16,7 @@ Official DLSS neural rendering (transformer models + Neural Rendering) ships onl
 
 ## ✨ Features
 
-- 🎮 **Three game cards**: MSFS 2024 / MSFS 2020 (placeholder) / X-Plane 12, each with its own one-click install, uninstall and open-folder actions
+- 🎮 **Three game cards**: MSFS 2024 / MSFS 2020 (Beta) / X-Plane 12 — each card keeps just two buttons: Install and Uninstall
 - 🌐 **Bilingual UI**: pick your language on first launch, switch anytime in Settings
 - 🖥️ **Dark card-style UI**, native WinForms single EXE (~150 MB self-contained, no .NET runtime needed), high-DPI / 4K ready
 - 🔒 **Safe & reversible**: installs back up every modified file and config; uninstall restores everything — saves and add-ons are never touched
@@ -29,7 +29,7 @@ Official DLSS neural rendering (transformer models + Neural Rendering) ships onl
 |---|---|---|---|
 | MSFS 2024 | DLSS Unlocked / OptiScaler | Hooks the game's own DLSS calls and stacks the neural-render pass on top of the upscaled output | Insert |
 | X-Plane 12 | DLSS5-Feeder + Deep Fried Chicken | No native DLSS: synthesizes the DLSS contract + shader-estimated motion vectors + neural rendering | Home |
-| MSFS 2020 | — (placeholder) | Blocked by the DX11 renderer; not supported yet | — |
+| MSFS 2020 | Beta · same flow as 2024 | Experimental: identical flow to 2024, not yet field-tested — feedback welcome | Insert |
 
 ## 🚀 Getting started
 
@@ -72,7 +72,7 @@ Official ReShade framework headers (ReShade.fxh etc.) are added automatically by
 
 ## ❓ Known limitations
 
-- MSFS 2020 is not supported (DX11 renderer)
+- MSFS 2020 support is **BETA**: identical flow to 2024 but not yet field-tested (its DX11 renderer may be incompatible) — uninstall and report if anything misbehaves
 - RTX 20/30 series: noticeable base-framerate cost (inherent to the approach)
 - XP12: motion vectors are shader-estimated — fast camera moves show brief ghosting
 - XP12 needs the `--allow_reshade` launch parameter (prevents the game from blocking the layer)
