@@ -278,6 +278,9 @@ public static class XP12Installer
         }
 
         // 3. ReShade.ini + 预设
+        //    预设 Techniques 必须用纯 technique 名（MotionEstimation.fx 的 technique 叫 DRME）；
+        //    写成 "名字@文件" 会被 ReShade 判为 unknown technique 而不勾选（群友实测踩坑）。
+        //    DRME（着色器运动矢量估算）必须排在 DLSS5_Feed 之前，为后者提供运动矢量。
         File.WriteAllText(Path.Combine(o.GameDir, "ReShade.ini"),
             "[ADDONS]\nEnableAddons=1\n\n[GENERAL]\n" +
             "EffectSearchPaths=.\\reshade-shaders\\Shaders\\**\n" +
@@ -286,9 +289,9 @@ public static class XP12Installer
             "PresetPath=.\\DLSS5-Feeder.ini\n");
         File.WriteAllText(Path.Combine(o.GameDir, "DLSS5-Feeder.ini"),
             "PreprocessorDefinitions=DLSS5_MV_PROVIDER=0\n" +
-            "Techniques=MotionEstimation@MotionEstimation.fx,DLSS5_Feed@DLSS5_Feed.fx\n" +
-            "TechniqueSorting=MotionEstimation@MotionEstimation.fx,DLSS5_Feed@DLSS5_Feed.fx\n");
-        o.Log(L.S("ReShade.ini + DLSS5-Feeder 预设已写入。", "ReShade.ini + DLSS5-Feeder preset written."));
+            "Techniques=DRME,DLSS5_Feed\n" +
+            "TechniqueSorting=DRME,DLSS5_Feed\n");
+        o.Log(L.S("ReShade.ini + DLSS5-Feeder 预设已写入（DRME + DLSS5_Feed 默认启用）。", "ReShade.ini + DLSS5-Feeder preset written (DRME + DLSS5_Feed enabled by default)."));
 
         // 4. 清单
         var dirs = files.Select(f => Path.GetDirectoryName(f)!)
@@ -306,7 +309,7 @@ public static class XP12Installer
         };
         File.WriteAllText(ManifestPath, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
         o.Log(L.S("安装清单已写入。", "Install manifest written."));
-        o.Log(L.S("使用：启动 X-Plane → Home 键 → 确认 MotionEstimation 与 DLSS5_Feed 已启用 → Deep Fried Chicken 标签应显示 standalone neural pipeline active。", "Usage: launch X-Plane → Home key → verify MotionEstimation and DLSS5_Feed are enabled → the Deep Fried Chicken tab should show standalone neural pipeline active."));
+        o.Log(L.S("完成。请完全重启 X-Plane：Home 键确认 DRME 与 DLSS 5 Feed 已勾选；若 DFC 显示 neural feature disabled，点 Refresh neural contract 或再次重启游戏。", "Done. Fully restart X-Plane: press Home to verify DRME and DLSS 5 Feed are ticked; if DFC shows neural feature disabled, click Refresh neural contract or restart the game again."));
         return manifest;
     }
 

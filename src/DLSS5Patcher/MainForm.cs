@@ -437,12 +437,12 @@ public sealed class MainForm : Form
             L.S("即将为 X-Plane 12 安装 DLSS5（DLSS5-Feeder 路线：合成 DLSS 契约 + 运动矢量估算 + 神经渲染）。\n\n" +
                 "• 注册 ReShade Vulkan 隐式层（机器级）并安装 Feeder/消费者组件\n" +
                 "• 运动矢量为着色器估算，快速移动视角会有重影（方案固有特性）\n" +
-                "• 安装后：游戏内按 Home 键确认 MotionEstimation 与 DLSS5_Feed 已启用\n\n" +
+                "• 安装后：完全重启 X-Plane，DRME 与 DLSS 5 Feed 已由安装器自动启用\n\n" +
                 "是否继续？",
                 "About to install DLSS5 for X-Plane 12 (DLSS5-Feeder route: synthesized DLSS contract + estimated motion vectors + neural rendering).\n\n" +
                 "• Registers the ReShade Vulkan implicit layer (machine-wide) and installs Feeder/consumer components\n" +
                 "• Motion vectors are shader-estimated; fast camera moves show ghosting (inherent to the approach)\n" +
-                "• After install: press Home in game to verify MotionEstimation and DLSS5_Feed are enabled\n\n" +
+                "• After install: fully restart X-Plane — DRME and DLSS 5 Feed are enabled by the installer automatically\n\n" +
                 "Continue?"),
             L.S("确认安装", "Confirm Installation"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (confirm != DialogResult.Yes) return;
@@ -458,8 +458,8 @@ public sealed class MainForm : Form
                 Log = Log,
             });
             MessageBox.Show(this,
-                L.S("安装完成！\n\n启动 X-Plane 后按 Home 键打开 ReShade，\n确认 MotionEstimation 与 DLSS5_Feed 已启用；\nDeep Fried Chicken 标签应显示 standalone neural pipeline active。",
-                    "Installation complete!\n\nLaunch X-Plane, press Home to open ReShade,\nverify MotionEstimation and DLSS5_Feed are enabled;\nthe Deep Fried Chicken tab should show standalone neural pipeline active."),
+                L.S("安装完成！\n\n请完全退出并重新启动 X-Plane（若正在运行），\n按 Home 键确认 DRME 与 DLSS 5 Feed 已勾选；\n若 Deep Fried Chicken 显示 neural feature disabled，\n点 Refresh neural contract 或再次重启游戏即可激活。",
+                    "Installation complete!\n\nFully restart X-Plane if it was running,\npress Home to verify DRME and DLSS 5 Feed are ticked;\nif Deep Fried Chicken shows \"neural feature disabled\",\nclick Refresh neural contract or restart the game again."),
                 L.S("完成", "Done"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)

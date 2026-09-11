@@ -91,18 +91,20 @@ public sealed class TutorialPage : UserControl
                  "   dlss5-feed.addon64, deep-fried-chicken.addon64, nvngx_dlss*.dll and the reshade-shaders folder."));
         Line(L.S("2. 点击「一键安装」。工具会注册 ReShade Vulkan 隐式层（机器级注册表）并安装组件。",
                  "2. Click Install. The tool registers the ReShade Vulkan implicit layer (machine-wide registry) and installs components."));
-        Line(L.S("3. 安装后启动 X-Plane，按 Home 键打开 ReShade 菜单，确认：",
-                 "3. Launch X-Plane, press Home to open the ReShade menu and verify:"));
-        Line(L.S("   · MotionEstimation 已启用（运动矢量估算）",
-                 "   · MotionEstimation is enabled (estimated motion vectors)"));
-        Line(L.S("   · DLSS5_Feed 已启用（神经渲染数据供给）",
-                 "   · DLSS5_Feed is enabled (neural-rendering data feed)"));
-        Line(L.S("   · Deep Fried Chicken 标签页显示 standalone neural pipeline active。",
-                 "   · The Deep Fried Chicken tab shows standalone neural pipeline active."));
-        Line(L.S("4. 已知特性：运动矢量为着色器估算，快速移动视角时会有短暂重影，属方案固有行为。",
-                 "4. Known trait: motion vectors are shader-estimated, so fast camera moves show brief ghosting — inherent to this approach."));
+        Line(L.S("3. 安装后启动 X-Plane（若之前开着请完全退出后重开），按 Home 键打开 ReShade 菜单，在 DLSS5-Feeder 预设里确认：",
+                 "3. Launch X-Plane (fully restart it if it was running), press Home to open the ReShade menu and check the DLSS5-Feeder preset:"));
+        Line(L.S("   · DRME [MotionEstimation.fx] 已勾选（着色器运动矢量估算），且排在 DLSS 5 Feed 之上",
+                 "   · DRME [MotionEstimation.fx] is ticked (shader motion-vector estimation) and sits above DLSS 5 Feed"));
+        Line(L.S("   · DLSS 5 Feed 已勾选（两者默认已由安装器配好，无需手动操作）",
+                 "   · DLSS 5 Feed is ticked (both are configured by the installer automatically)"));
+        Line(L.S("4. 首次安装后若 Deep Fried Chicken 菜单显示 neural feature disabled until native recreate/restart，",
+                 "4. If the Deep Fried Chicken tab shows \"neural feature disabled until native recreate/restart\" on first run,"));
+        Line(L.S("   请点击 Refresh neural contract 按钮或完全重启 X-Plane 即可激活。",
+                 "   click Refresh neural contract or fully restart X-Plane to activate the neural pipeline."));
+        Line(L.S("5. 已知特性：运动矢量为着色器估算，快速移动视角时会有短暂重影，属方案固有行为。",
+                 "5. Known trait: motion vectors are shader-estimated, so fast camera moves show brief ghosting — inherent to this approach."));
         Line(L.S("5. XP12 本体 4K 渲染帧间隔约 105ms 属正常（本体渲染耗时），DLSS5 供给仅占约 1.5ms。",
-                 "5. A ~105ms frame time at 4K is normal for X-Plane itself (its own rendering cost); the DLSS5 feed adds only ~1.5ms."));
+                 "6. A ~105ms frame time at 4K is normal for X-Plane itself (its own rendering cost); the DLSS5 feed adds only ~1.5ms."));
         Gap();
 
         Heading(L.S("五、卸载与恢复", "5. Uninstall & Restore"));

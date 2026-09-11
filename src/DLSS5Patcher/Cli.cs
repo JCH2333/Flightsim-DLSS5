@@ -90,7 +90,7 @@ internal static class Cli
                     KitDir = kit,
                     Log = Log,
                 }).GetAwaiter().GetResult();
-                Log(L.S($"安装完成：{m.Tag}。启动 X-Plane 后按 Home 键确认 MotionEstimation 与 DLSS5_Feed 已启用。", $"Install complete: {m.Tag}. After launching X-Plane press Home to verify MotionEstimation and DLSS5_Feed are enabled."));
+                Log(L.S($"安装完成：{m.Tag}。完全重启 X-Plane 后按 Home 键确认 DRME 与 DLSS 5 Feed 已勾选；若 DFC 显示 neural feature disabled，点 Refresh neural contract 或再重启一次。", $"Install complete: {m.Tag}. Fully restart X-Plane, press Home to verify DRME and DLSS 5 Feed are ticked; if DFC shows neural feature disabled, click Refresh neural contract or restart once more."));
                 return 0;
             }
             case "--uninstall-xp12":
