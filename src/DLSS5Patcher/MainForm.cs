@@ -134,13 +134,25 @@ public sealed class MainForm : Form
         _home.Msfs2020UninstallRequested += () => _ = UninstallMsfsAsync(_game2020, beta: true);
         _home.XpInstallRequested += () => _ = InstallXp12Async();
         _home.XpUninstallRequested += () => _ = UninstallXp12Async();
-        _about.MsfsBrowseRequested += BrowseForGame;
+        _about.MsfsBrowseRequested += () => BrowseForGame(0);
+        _about.Msfs2020BrowseRequested += () => BrowseForGame(1);
         _about.XpPickKitRequested += PickKitDir;
     }
 
     private void Log(string s) => _home.Log(s);
 
     // ───────────────────────────── 检测 ─────────────────────────────
+
+    /// <summary>手动目录有效则用手动目录，否则自动检测。</summary>
+    private static GameInstall? FindGame(string manualDir, int targetIdx)
+    {
+        if (manualDir.Length > 0)
+        {
+            var g = GameLocator.FromManualDir(manualDir, GameLocator.Targets[targetIdx].ExeName);
+            if (g != null) return g;
+        }
+        return GameLocator.Find(GameLocator.Targets[targetIdx].AppId, GameLocator.Targets[targetIdx].ExeName);
+    }
 
     private async Task RefreshAsync()
     {
@@ -150,8 +162,9 @@ public sealed class MainForm : Form
             await Task.Run(() =>
             {
                 _gpu = GpuInfo.Detect();
-                _game2024 = GameLocator.Find(GameLocator.Targets[0].AppId, GameLocator.Targets[0].ExeName);
-                _game2020 = GameLocator.Find(GameLocator.Targets[1].AppId, GameLocator.Targets[1].ExeName);
+                // 手动指定的目录优先（存于 AppConfig，刷新不丢）；否则自动检测
+                _game2024 = FindGame(AppConfig.ManualMsfs2024Dir, 0);
+                _game2020 = FindGame(AppConfig.ManualMsfs2020Dir, 1);
                 _gameXp12 = GameLocator.Find(GameLocator.Targets[2].AppId, GameLocator.Targets[2].ExeName);
             });
 
@@ -198,6 +211,7 @@ public sealed class MainForm : Form
 
             _about.SetManualPaths(
                 _game2024 != null ? $"{_game2024.GameDir}   [{_game2024.Source}]" : L.S("未检测到（可点击右侧按钮手动指定）", "Not detected (use the button on the right to browse)"),
+                _game2020 != null ? $"{_game2020.GameDir}   [{_game2020.Source}]" : L.S("未检测到（可点击右侧按钮手动指定）", "Not detected (use the button on the right to browse)"),
                 Directory.Exists(AppConfig.KitDir) ? AppConfig.KitDir : L.S("未选择（XP12 安装前需先指定）", "Not selected (required before installing to XP12)"));
         }
         catch (Exception ex)
@@ -278,18 +292,30 @@ public sealed class MainForm : Form
             canInstall, canUninstall);
     }
 
-    private void BrowseForGame()
+    /// <summary>手动指定游戏目录（idx: 0=MSFS 2024, 1=MSFS 2020）。持久化到 AppConfig，刷新不丢。</summary>
+    private void BrowseForGame(int targetIdx)
     {
-        using var dlg = new FolderBrowserDialog { Description = L.S("选择包含 FlightSimulator2024.exe 的文件夹", "Pick the folder containing FlightSimulator2024.exe") };
+        var exeName = GameLocator.Targets[targetIdx].ExeName;
+        var cnName = L.S(GameLocator.Targets[targetIdx].CnName, GameLocator.Targets[targetIdx].EnName);
+        using var dlg = new FolderBrowserDialog
+        {
+            Description = L.S($"选择包含 {exeName} 的文件夹（微软商店版可直接选 Content 目录或其上层）",
+                              $"Pick the folder containing {exeName} (for the Microsoft Store version, the Content folder or its parent both work)")
+        };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        var g = GameLocator.FromManualDir(dlg.SelectedPath, GameLocator.Targets[0].ExeName);
+        var g = GameLocator.FromManualDir(dlg.SelectedPath, exeName);
         if (g == null)
         {
-            MessageBox.Show(this, L.S("所选目录中未找到 FlightSimulator2024.exe", "FlightSimulator2024.exe was not found in the selected folder"),
+            MessageBox.Show(this,
+                L.S($"所选目录中未找到 {exeName}（微软商店版请选择 Content 目录或其上层）",
+                    $"{exeName} was not found in the selected folder (for the Store version, pick the Content folder or its parent)"),
                 L.S("无效目录", "Invalid folder"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        _game2024 = g;
+        if (targetIdx == 0) AppConfig.ManualMsfs2024Dir = g.GameDir;
+        else AppConfig.ManualMsfs2020Dir = g.GameDir;
+        AppConfig.Save();
+        Log(L.S($"已手动指定 {cnName} 目录：{g.GameDir}", $"Manually set the {cnName} folder: {g.GameDir}"));
         _ = RefreshAsync();
     }
 

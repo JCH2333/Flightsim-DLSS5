@@ -71,8 +71,10 @@ public sealed class TutorialPage : UserControl
                  "6. Tuning: low FPS → lower Model resolution; over-sharpened image → lower Detail strength."));
         Line(L.S("7. 游戏内如出现「Update v0.9.4」更新提示，请勿点击（主线版本不含神经渲染，会覆盖补丁）。",
                  "7. If the OptiScaler menu offers \"Update v0.9.4\", do NOT accept (the mainline build lacks neural rendering and would overwrite the patch)."));
-        Line(L.S("8. 检测不到游戏目录时，可在「设置 / 关于」页的「手动配置」中手动指定游戏目录。",
-                 "8. If the game folder is not detected, set it manually under \"Manual setup\" on the Settings / About page."));
+        Line(L.S("8. 微软商店 / Xbox 版：游戏装在 <盘>:\\XboxGames 下可自动检测；装在自定义位置时，",
+                 "8. Microsoft Store / Xbox version: auto-detection works when the game is under <drive>:\\XboxGames; if installed elsewhere,"));
+        Line(L.S("   请在「设置 / 关于」页的「手动配置」中指定目录（选 Content 目录或其上层均可）。",
+                 "   set it under \"Manual setup\" on the Settings / About page (pick the Content folder or its parent — both work)."));
         Gap();
 
         Heading(L.S("三、微软模拟飞行 2020（Beta 实验性）", "3. Microsoft Flight Simulator 2020 (BETA, experimental)"));

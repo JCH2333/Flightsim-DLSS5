@@ -12,10 +12,12 @@ public sealed class AboutPage : UserControl
     private readonly ComboBox _cboScale = new();
     private readonly ComboBox _cboLang = new();
     private readonly Label _lblMsfsDir = new();
+    private readonly Label _lblMsfs2020Dir = new();
     private readonly Label _lblKitDir = new();
     private bool _langReady;   // 防止初始 SelectedIndex 触发切换逻辑
 
     public event Action? MsfsBrowseRequested;
+    public event Action? Msfs2020BrowseRequested;
     public event Action? XpPickKitRequested;
 
     /// <summary>所选 WorkingScale（MSFS 安装时生效）。</summary>
@@ -30,10 +32,10 @@ public sealed class AboutPage : UserControl
 
         BuildLanguageCard(52);
         BuildManualSetupCard(158);
-        BuildOptionsCard(304);
-        BuildDeclarationCard(410);
-        BuildQqCard(514);
-        BuildAboutCard(630);
+        BuildOptionsCard(340);
+        BuildDeclarationCard(446);
+        BuildQqCard(550);
+        BuildAboutCard(666);
     }
 
     private void BuildLanguageCard(int y)
@@ -79,7 +81,7 @@ public sealed class AboutPage : UserControl
 
     private void BuildManualSetupCard(int y)
     {
-        var card = Theme.MakeCard(832, 134);
+        var card = Theme.MakeCard(832, 170);
         card.Location = new Point(24, y);
 
         var head = Theme.MakeLabel(
@@ -88,49 +90,39 @@ public sealed class AboutPage : UserControl
         head.Location = new Point(16, 10);
         card.Controls.Add(head);
 
-        var lblMsfs = Theme.MakeLabel(L.S("MSFS 2024 游戏目录：", "MSFS 2024 game folder:"), Theme.TextSecondary, 9f);
-        lblMsfs.Location = new Point(16, 50);
-        card.Controls.Add(lblMsfs);
-
-        _lblMsfsDir.AutoSize = false;
-        _lblMsfsDir.Size = new Size(434, 18);
-        _lblMsfsDir.Location = new Point(200, 52);
-        _lblMsfsDir.ForeColor = Theme.TextMuted;
-        _lblMsfsDir.Font = new Font("Microsoft YaHei UI", 8.25f);
-        _lblMsfsDir.AutoEllipsis = true;
-        card.Controls.Add(_lblMsfsDir);
-
-        var btnMsfsBrowse = Theme.MakeButton(L.S("手动指定目录...", "Browse..."));
-        btnMsfsBrowse.Size = new Size(170, 30);
-        btnMsfsBrowse.Location = new Point(832 - 170 - 16, 42);
-        btnMsfsBrowse.Click += (_, _) => MsfsBrowseRequested?.Invoke();
-        card.Controls.Add(btnMsfsBrowse);
-
-        var lblKit = Theme.MakeLabel(L.S("XP12 组件包目录：", "XP12 kit folder:"), Theme.TextSecondary, 9f);
-        lblKit.Location = new Point(16, 88);
-        card.Controls.Add(lblKit);
-
-        _lblKitDir.AutoSize = false;
-        _lblKitDir.Size = new Size(434, 18);
-        _lblKitDir.Location = new Point(200, 90);
-        _lblKitDir.ForeColor = Theme.TextMuted;
-        _lblKitDir.Font = new Font("Microsoft YaHei UI", 8.25f);
-        _lblKitDir.AutoEllipsis = true;
-        card.Controls.Add(_lblKitDir);
-
-        var btnKit = Theme.MakeButton(L.S("选择组件包...", "Select Kit..."));
-        btnKit.Size = new Size(170, 30);
-        btnKit.Location = new Point(832 - 170 - 16, 80);
-        btnKit.Click += (_, _) => XpPickKitRequested?.Invoke();
-        card.Controls.Add(btnKit);
+        AddManualRow(card, L.S("MSFS 2024 游戏目录：", "MSFS 2024 game folder:"), _lblMsfsDir, 30, () => MsfsBrowseRequested?.Invoke());
+        AddManualRow(card, L.S("MSFS 2020 游戏目录（Beta）：", "MSFS 2020 game folder (Beta):"), _lblMsfs2020Dir, 68, () => Msfs2020BrowseRequested?.Invoke());
+        AddManualRow(card, L.S("XP12 组件包目录：", "XP12 kit folder:"), _lblKitDir, 106, () => XpPickKitRequested?.Invoke());
 
         Controls.Add(card);
     }
 
+    private void AddManualRow(Panel card, string caption, Label valueLabel, int y, Action browse)
+    {
+        var lbl = Theme.MakeLabel(caption, Theme.TextSecondary, 9f);
+        lbl.Location = new Point(16, y + 6);
+        card.Controls.Add(lbl);
+
+        valueLabel.AutoSize = false;
+        valueLabel.Size = new Size(434, 18);
+        valueLabel.Location = new Point(200, y + 8);
+        valueLabel.ForeColor = Theme.TextMuted;
+        valueLabel.Font = new Font("Microsoft YaHei UI", 8.25f);
+        valueLabel.AutoEllipsis = true;
+        card.Controls.Add(valueLabel);
+
+        var btn = Theme.MakeButton(L.S("手动指定目录...", "Browse..."));
+        btn.Size = new Size(170, 30);
+        btn.Location = new Point(832 - 170 - 16, y);
+        btn.Click += (_, _) => browse();
+        card.Controls.Add(btn);
+    }
+
     /// <summary>刷新手动配置卡的目录显示（检测完成后由 MainForm 调用）。</summary>
-    public void SetManualPaths(string msfsDirDisplay, string kitDirDisplay)
+    public void SetManualPaths(string msfsDirDisplay, string msfs2020DirDisplay, string kitDirDisplay)
     {
         _lblMsfsDir.Text = msfsDirDisplay;
+        _lblMsfs2020Dir.Text = msfs2020DirDisplay;
         _lblKitDir.Text = kitDirDisplay;
     }
 

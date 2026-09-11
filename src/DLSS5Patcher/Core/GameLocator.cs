@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 using System.Text.RegularExpressions;
 
 namespace DLSS5Patcher.Core;
@@ -74,11 +74,18 @@ public static class GameLocator
         return null;
     }
 
-    /// <summary>校验手动选择的目录（须包含目标 exe）。</summary>
+    /// <summary>
+    /// 校验手动选择的目录（须包含目标 exe）。
+    /// 兼容 Xbox/微软商店结构：选到上层目录时自动尝试 Content 子目录。
+    /// </summary>
     public static GameInstall? FromManualDir(string dir, string exeName)
     {
-        if (!File.Exists(Path.Combine(dir, exeName))) return null;
-        return new GameInstall { GameDir = dir, ExePath = Path.Combine(dir, exeName), Source = L.S("手动指定", "Manual"), ExeName = exeName };
+        foreach (var candidate in new[] { dir, Path.Combine(dir, "Content") })
+        {
+            if (File.Exists(Path.Combine(candidate, exeName)))
+                return new GameInstall { GameDir = candidate, ExePath = Path.Combine(candidate, exeName), Source = L.S("手动指定", "Manual"), ExeName = exeName };
+        }
+        return null;
     }
 
     private static bool EnvDebug => Environment.GetEnvironmentVariable("DLSS5_DEBUG") == "1";

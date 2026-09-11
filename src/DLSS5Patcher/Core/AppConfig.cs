@@ -10,6 +10,10 @@ public static class AppConfig
     public static string Lang { get; set; } = "";
     public static string KitDir { get; set; } = "";
 
+    /// <summary>手动指定的游戏目录（自动检测不到时使用；空 = 自动检测）。</summary>
+    public static string ManualMsfs2024Dir { get; set; } = "";
+    public static string ManualMsfs2020Dir { get; set; } = "";
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DLSS5Patcher", "config.txt");
 
@@ -35,6 +39,8 @@ public static class AppConfig
                 var val = line[(i + 1)..].Trim();
                 if (key == "lang") Lang = val;
                 else if (key == "kit") KitDir = val;
+                else if (key == "dir24") ManualMsfs2024Dir = val;
+                else if (key == "dir20") ManualMsfs2020Dir = val;
             }
         }
         catch { }
@@ -45,7 +51,10 @@ public static class AppConfig
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.WriteAllLines(FilePath, new[] { $"lang={Lang}", $"kit={KitDir}" });
+            File.WriteAllLines(FilePath, new[]
+            {
+                $"lang={Lang}", $"kit={KitDir}", $"dir24={ManualMsfs2024Dir}", $"dir20={ManualMsfs2020Dir}",
+            });
         }
         catch { }
     }
