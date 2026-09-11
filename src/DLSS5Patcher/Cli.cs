@@ -1,4 +1,4 @@
-using DLSS5Patcher.Core;
+﻿using DLSS5Patcher.Core;
 
 namespace DLSS5Patcher;
 
@@ -43,7 +43,6 @@ internal static class Cli
                     return 1;
                 }
                 string scale = args.Length > 1 ? args[1] : gpu.RecommendedWorkingScale;
-                string? proxy = args.Length > 3 && args[2] == "--proxy" ? args[3] : null;
                 Log(L.S($"GPU 世代: {gpu.GenerationCn} → 默认 WorkingScale={scale}", $"GPU generation: {gpu.GenerationCn} → default WorkingScale={scale}"));
                 var m = UnlockedInstaller.InstallAsync(new UnlockedInstaller.InstallOptions
                 {
@@ -51,7 +50,6 @@ internal static class Cli
                     ExeName = game.ExeName,
                     WorkingScale = scale,
                     Generation = gpu.Generation,
-                    Proxy = proxy,
                     Log = Log,
                     Progress = null,
                 }).GetAwaiter().GetResult();
@@ -90,7 +88,6 @@ internal static class Cli
                     GameDir = game.GameDir,
                     ExePath = game.ExePath,
                     KitDir = kit,
-                    Proxy = null,
                     Log = Log,
                 }).GetAwaiter().GetResult();
                 Log(L.S($"安装完成：{m.Tag}。启动 X-Plane 后按 Home 键确认 MotionEstimation 与 DLSS5_Feed 已启用。", $"Install complete: {m.Tag}. After launching X-Plane press Home to verify MotionEstimation and DLSS5_Feed are enabled."));
@@ -110,7 +107,7 @@ internal static class Cli
                 return 0;
             }
             default:
-                Log(L.S("用法: --detect | --install [scale] [--proxy url] | --uninstall | --install-xp12 [--kit 目录] | --uninstall-xp12", "Usage: --detect | --install [scale] [--proxy url] | --uninstall | --install-xp12 [--kit dir] | --uninstall-xp12"));
+                Log(L.S("用法: --detect | --install [scale] | --uninstall | --install-xp12 [--kit 目录] | --uninstall-xp12", "Usage: --detect | --install [scale] | --uninstall | --install-xp12 [--kit dir] | --uninstall-xp12"));
                 return 2;
         }
     }

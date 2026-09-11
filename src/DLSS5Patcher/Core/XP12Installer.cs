@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -12,7 +12,6 @@ namespace DLSS5Patcher.Core;
 /// </summary>
 public static class XP12Installer
 {
-    public const string ReShadeSetupUrl = "https://reshade.me/downloads/ReShade_Setup_6.8.0_Addon.exe";
     public const string ReShadeSetupSha256 = "afe4c8f13048306307983b8b3d41d5bf00a86820440b0e57dea10950e1176445";
     public const string ReShadeSetupName = "ReShade_Setup_6.8.0_Addon.exe";
     public const string ReShadeVersion = "6.8.0.2155";
@@ -33,12 +32,12 @@ public static class XP12Installer
         @"reshade-shaders\Shaders\MotionVectors.fxh",
     };
 
-    /// <summary>ReShade 官方框架头文件（DLSS5_Feed.fx 编译必需，kit 不自带）。</summary>
-    private static readonly (string File, string Url)[] FrameworkHeaders =
+    /// <summary>ReShade 官方框架头文件（DLSS5_Feed.fx 编译必需，kit 不自带；内容已内嵌于 EXE）。</summary>
+    private static readonly string[] FrameworkHeaders =
     {
-        ("ReShade.fxh", "https://raw.githubusercontent.com/crosire/reshade-shaders/slim/Shaders/ReShade.fxh"),
-        ("ReShadeUI.fxh", "https://raw.githubusercontent.com/crosire/reshade-shaders/slim/Shaders/ReShadeUI.fxh"),
-        ("DrawText.fxh", "https://raw.githubusercontent.com/crosire/reshade-shaders/slim/Shaders/DrawText.fxh"),
+        "ReShade.fxh",
+        "ReShadeUI.fxh",
+        "DrawText.fxh",
     };
 
     /// <summary>复制到游戏根目录的 kit 文件（不含 DX11 桥 —— Vulkan 不需要）。</summary>
@@ -110,8 +109,8 @@ public static class XP12Installer
         return false;
     }
 
-    /// <summary>获取（或复用本地）ReShade 安装器并解出 Vulkan 层文件。</summary>
-    private static async Task<(string dll, string json)> EnsureReShadeLayerFilesAsync(string? proxy, Action<string> log, CancellationToken ct)
+    /// <summary>从内置资源部署 ReShade Vulkan 层文件（无需网络、无需解压安装器）。</summary>
+    private static (string dll, string json) EnsureReShadeLayerFiles(Action<string> log)
     {
         var pd = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "ReShade");
         Directory.CreateDirectory(pd);
@@ -125,45 +124,7 @@ public static class XP12Installer
             return (dll, json);
         }
 
-        // 从缓存/本地包/exe旁 的 ReShade 安装器提取
-        var candidates = new[]
-        {
-            Path.Combine(Downloader.CacheDir, ReShadeSetupName),
-            Path.Combine(AppContext.BaseDirectory, "packages", ReShadeSetupName),
-        };
-        string? setup = candidates.FirstOrDefault(File.Exists);
-        foreach (var c in candidates.Where(File.Exists))
-        {
-            if (Downloader.Sha256File(c) == ReShadeSetupSha256) { setup = c; break; }
-        }
-        if (setup == null)
-        {
-            log(L.S("下载 ReShade 6.8.0 Addon 安装器（4MB）...", "Downloading the ReShade 6.8.0 Addon installer (4MB)..."));
-            using var http = new HttpClient();
-            using var resp = await http.GetAsync(ReShadeSetupUrl, ct);
-            resp.EnsureSuccessStatusCode();
-            setup = candidates[0];
-            Directory.CreateDirectory(Path.GetDirectoryName(setup)!);
-            await using var fs = File.Create(setup);
-            await resp.Content.CopyToAsync(fs, ct);
-            await fs.DisposeAsync();
-            if (Downloader.Sha256File(setup) != ReShadeSetupSha256)
-            {
-                File.Delete(setup);
-                throw new InvalidOperationException("ReShade 安装器校验失败，请重试或配置代理。");
-            }
-        }
-        else
-        {
-            log(L.S("使用本地 ReShade 安装器。", "Using the local ReShade installer."));
-        }
-
-        using var zip = ZipFile.OpenRead(setup);
-        foreach (var (member, dest) in new[] { ("ReShade64.dll", dll), ("ReShade64.json", json) })
-        {
-            var e = zip.GetEntry(member) ?? throw new InvalidOperationException("ReShade 安装器缺少 " + member);
-            e.ExtractToFile(dest, overwrite: true);
-        }
+        PackageStore.WriteReShadeLayerFiles(pd, log);
         log(L.S("ReShade Vulkan 层文件已部署。", "ReShade Vulkan layer files deployed."));
         return (dll, json);
     }
@@ -257,11 +218,13 @@ public static class XP12Installer
         public required string GameDir { get; init; }
         public required string ExePath { get; init; }
         public required string KitDir { get; init; }
-        public string? Proxy { get; init; }
         public required Action<string> Log { get; init; }
     }
 
     public static async Task<InstallManifest> InstallAsync(InstallOptions o, CancellationToken ct = default)
+        => await Task.Run(() => InstallCore(o), ct);
+
+    private static InstallManifest InstallCore(InstallOptions o)
     {
         o.Log(L.S($"目标游戏目录：{o.GameDir}", $"Target game folder: {o.GameDir}"));
 
@@ -272,7 +235,7 @@ public static class XP12Installer
             throw new InvalidOperationException("组件包缺少文件：" + string.Join(", ", missing));
 
         // 1. ReShade Vulkan 层（ProgramData + 注册表 + 白名单）
-        var (dll, json) = await EnsureReShadeLayerFilesAsync(o.Proxy, o.Log, ct);
+        var (dll, json) = EnsureReShadeLayerFiles(o.Log);
         PatchLayerJsonApiVersion(json);
         RegisterLayer();
         EnsureAppWhitelisted(o.ExePath, o.Log);
@@ -297,7 +260,7 @@ public static class XP12Installer
         o.Log(L.S($"已写入 {files.Count} 个文件（不含 DX11 桥 —— Vulkan 无需）。", $"Wrote {files.Count} files (no DX11 bridge — not needed on Vulkan)."));
 
         // 2.5 ReShade 官方框架头文件（kit 不自带；缺失会导致 DLSS5_Feed.fx 编译失败）
-        foreach (var (name, url) in FrameworkHeaders)
+        foreach (var name in FrameworkHeaders)
         {
             var dst = Path.Combine(shaderDirDst, name);
             if (File.Exists(dst)) { files.Add(@"reshade-shaders\Shaders\" + name); continue; }
@@ -308,11 +271,7 @@ public static class XP12Installer
             }
             else
             {
-                using var http = new HttpClient();
-                using var resp = await http.GetAsync(url, ct);
-                resp.EnsureSuccessStatusCode();
-                await using var fs = File.Create(dst);
-                await resp.Content.CopyToAsync(fs, ct);
+                File.WriteAllText(dst, PackageStore.ReadFxh(name));
             }
             files.Add(@"reshade-shaders\Shaders\" + name);
             o.Log(L.S($"已补齐框架头文件 {name}。", $"Added missing framework header {name}."));
@@ -339,7 +298,7 @@ public static class XP12Installer
         {
             Tag = "DLSS5-Feeder 0.13.1-beta.1 + DFC 1.4.8",
             InstalledAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-            PackageSha256 = "kit:" + Downloader.Sha256File(Path.Combine(o.KitDir, "dlss5-feed.addon64"))[..16],
+            PackageSha256 = "kit:" + PackageStore.Sha256File(Path.Combine(o.KitDir, "dlss5-feed.addon64"))[..16],
             GameDir = o.GameDir,
             Files = files,
             Dirs = dirs,

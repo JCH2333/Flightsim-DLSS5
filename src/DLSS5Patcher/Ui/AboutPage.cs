@@ -10,7 +10,6 @@ public sealed class AboutPage : UserControl
     public const string QqJoinUrl = "https://qun.qq.com/join.html?gc=" + QqGroup;
 
     private readonly ComboBox _cboScale = new();
-    private readonly TextBox _txtProxy = new();
     private readonly ComboBox _cboLang = new();
     private readonly Label _lblMsfsDir = new();
     private readonly Label _lblKitDir = new();
@@ -22,9 +21,6 @@ public sealed class AboutPage : UserControl
     /// <summary>所选 WorkingScale（MSFS 安装时生效）。</summary>
     public string WorkingScale => _cboScale.SelectedItem?.ToString() ?? "0.5";
 
-    /// <summary>所选代理（可为 null）。</summary>
-    public string? Proxy => string.IsNullOrWhiteSpace(_txtProxy.Text) ? null : _txtProxy.Text.Trim();
-
     public AboutPage()
     {
         BackColor = Theme.Bg;
@@ -35,9 +31,9 @@ public sealed class AboutPage : UserControl
         BuildLanguageCard(52);
         BuildManualSetupCard(158);
         BuildOptionsCard(304);
-        BuildDeclarationCard(466);
-        BuildQqCard(570);
-        BuildAboutCard(686);
+        BuildDeclarationCard(410);
+        BuildQqCard(514);
+        BuildAboutCard(630);
     }
 
     private void BuildLanguageCard(int y)
@@ -140,7 +136,7 @@ public sealed class AboutPage : UserControl
 
     private void BuildOptionsCard(int y)
     {
-        var card = Theme.MakeCard(832, 150);
+        var card = Theme.MakeCard(832, 94);
         card.Location = new Point(24, y);
 
         var head = Theme.MakeLabel(
@@ -152,31 +148,17 @@ public sealed class AboutPage : UserControl
         var lblScale = Theme.MakeLabel(
             L.S("模型分辨率 WorkingScale（越低越省算力）：", "Model resolution WorkingScale (lower = less GPU cost):"),
             Theme.TextSecondary, 9f);
-        lblScale.Location = new Point(16, 44);
+        lblScale.Location = new Point(16, 50);
         card.Controls.Add(lblScale);
 
         _cboScale.DropDownStyle = ComboBoxStyle.DropDownList;
         _cboScale.Items.AddRange(new object[] { "0.35", "0.5", "0.75", "1.0" });
         _cboScale.SelectedIndex = 1;
-        _cboScale.Location = new Point(440, 40);
+        _cboScale.Location = new Point(440, 46);
         _cboScale.Size = new Size(90, 26);
         _cboScale.BackColor = Theme.SurfaceRaised;
         _cboScale.ForeColor = Theme.Text;
         card.Controls.Add(_cboScale);
-
-        var lblProxy = Theme.MakeLabel(
-            L.S("代理（可选，直连下载失败时使用）：", "Proxy (optional, for downloads when direct connection fails):"),
-            Theme.TextSecondary, 9f);
-        lblProxy.Location = new Point(16, 84);
-        card.Controls.Add(lblProxy);
-
-        _txtProxy.Location = new Point(440, 80);
-        _txtProxy.Size = new Size(300, 26);
-        _txtProxy.BackColor = Theme.SurfaceRaised;
-        _txtProxy.ForeColor = Theme.Text;
-        _txtProxy.BorderStyle = BorderStyle.FixedSingle;
-        _txtProxy.PlaceholderText = L.S("示例：http://127.0.0.1:7890", "e.g. http://127.0.0.1:7890");
-        card.Controls.Add(_txtProxy);
 
         Controls.Add(card);
     }
@@ -284,8 +266,8 @@ public sealed class AboutPage : UserControl
                 "Supports: MSFS 2024 / 2020 (Beta) / X-Plane 12 (RTX 20-50 series GPU, driver ≥ 616.56)"),
             L.S("路线：MSFS = DLSS Unlocked / OptiScaler；XP12 = DLSS5-Feeder + Deep Fried Chicken（ReShade 路线规划中）",
                 "Routes: MSFS = DLSS Unlocked / OptiScaler; XP12 = DLSS5-Feeder + Deep Fried Chicken (ReShade route planned)"),
-            L.S("命令行：--detect | --install [scale] [--proxy url] | --uninstall | --install-xp12 [--kit 目录] | --uninstall-xp12",
-                "CLI: --detect | --install [scale] [--proxy url] | --uninstall | --install-xp12 [--kit dir] | --uninstall-xp12"),
+            L.S("命令行：--detect | --install [scale] | --uninstall | --install-xp12 [--kit 目录] | --uninstall-xp12",
+                "CLI: --detect | --install [scale] | --uninstall | --install-xp12 [--kit dir] | --uninstall-xp12"),
         };
         for (int i = 0; i < lines.Length; i++)
         {

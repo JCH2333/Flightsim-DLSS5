@@ -57,8 +57,8 @@ public sealed class TutorialPage : UserControl
         Heading(L.S("二、微软模拟飞行 2024（OptiScaler 路线）", "2. Microsoft Flight Simulator 2024 (OptiScaler route)"));
         Line(L.S("1. 在「一键安装」页的 MSFS 2024 卡片点击「一键安装」。",
                  "1. On the One-Click Install page, click Install on the MSFS 2024 card."));
-        Line(L.S("2. 工具会自动下载约 460MB 组件包并校验（可在代理框填入代理地址，直连失败时使用）。",
-                 "2. The tool downloads and verifies a ~460MB component package (fill in the proxy box if a direct connection fails)."));
+        Line(L.S("2. 组件包已内置在程序中（约 440MB），安装全程无需联网、无需代理。",
+                 "2. The component package is embedded in the program (~440MB) — no internet or proxy needed."));
         Line(L.S("3. 安装过程自动备份被修改的文件与配置，可随时「卸载」一键还原。",
                  "3. Modified files and configs are backed up automatically; Uninstall restores everything at any time."));
         Line(L.S("4. 安装完成后启动游戏，进入「图形」设置，把抗锯齿设为 DLSS 或 DLAA（必须）。",

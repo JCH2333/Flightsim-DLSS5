@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -56,13 +56,16 @@ public static class UnlockedInstaller
         public required string ExeName { get; init; }
         public required string WorkingScale { get; init; }   // "0.5" 等
         public required GpuGeneration Generation { get; init; }
-        public string? Proxy { get; init; }
         public required Action<string> Log { get; init; }
         public required IProgress<(long, long)>? Progress { get; init; }
     }
 
     public static async Task<InstallManifest> InstallAsync(InstallOptions o, CancellationToken ct = default)
+        => await Task.Run(() => InstallCore(o, ct), ct);
+
+    private static InstallManifest InstallCore(InstallOptions o, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         o.Log(L.S($"目标游戏目录：{o.GameDir}", $"Target game folder: {o.GameDir}"));
 
         // 0. 冲突检查：已有第三方 dxgi.dll 时拒绝
@@ -71,41 +74,49 @@ public static class UnlockedInstaller
             throw new InvalidOperationException(
                 "游戏目录已存在第三方 dxgi.dll（可能是 ReShade / 其他注入器），与 OptiScaler 冲突。请先备份并移除它，再重新安装。");
 
-        // 1. 获取组件包
-        var zipPath = await Downloader.AcquirePackageAsync(o.Proxy, o.Progress, o.Log, ct);
+        // 1. 打开内置组件包（嵌入资源，无网络）
+        using var zip = new ZipArchive(PackageStore.OpenMsfsPackage(msg => o.Log(msg)), ZipArchiveMode.Read);
 
         // 2. 解压到游戏目录
-        o.Log(L.S("解压组件包...", "Extracting package..."));
+        o.Log(L.S("从内置组件包解压（约 440MB，视磁盘速度需一两分钟）...", "Extracting the embedded package (~440MB, may take a minute or two)..."));
         var files = new List<string>();
         var dirs = new HashSet<string>();
-        using (var zip = ZipFile.OpenRead(zipPath))
+        long totalBytes = zip.Entries.Where(e => !string.IsNullOrEmpty(e.Name)).Sum(e => e.Length);
+        long doneBytes = 0;
+        var lastReport = Environment.TickCount64;
+        foreach (var entry in zip.Entries)
         {
-            foreach (var entry in zip.Entries)
+            if (string.IsNullOrEmpty(entry.Name)) continue; // 目录条目跳过
+            var rel = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
+            var dst = Path.Combine(o.GameDir, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+            try
             {
-                if (string.IsNullOrEmpty(entry.Name)) continue; // 目录条目跳过
-                var rel = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
-                var dst = Path.Combine(o.GameDir, rel);
-                Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
-                try
-                {
-                    entry.ExtractToFile(dst, overwrite: true);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-                                           && rel.EndsWith(".log", StringComparison.OrdinalIgnoreCase))
-                {
-                    o.Log(L.S($"跳过被占用的日志文件 {rel}（不影响功能）。", $"Skipping locked log file {rel} (harmless)."));
-                    continue;
-                }
-                files.Add(rel);
-                // 记录中间目录（卸载时按深度倒序删空目录）
-                var acc = "";
-                foreach (var part in rel.Split(Path.DirectorySeparatorChar)[..^1])
-                {
-                    acc = acc.Length == 0 ? part : acc + Path.DirectorySeparatorChar + part;
-                    dirs.Add(acc);
-                }
+                entry.ExtractToFile(dst, overwrite: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                       && rel.EndsWith(".log", StringComparison.OrdinalIgnoreCase))
+            {
+                o.Log(L.S($"跳过被占用的日志文件 {rel}（不影响功能）。", $"Skipping locked log file {rel} (harmless)."));
+                doneBytes += entry.Length;
+                continue;
+            }
+            files.Add(rel);
+            doneBytes += entry.Length;
+            if (Environment.TickCount64 - lastReport > 300)
+            {
+                lastReport = Environment.TickCount64;
+                o.Progress?.Report((doneBytes, Math.Max(totalBytes, 1)));
+            }
+            // 记录中间目录（卸载时按深度倒序删空目录）
+            var acc = "";
+            foreach (var part in rel.Split(Path.DirectorySeparatorChar)[..^1])
+            {
+                acc = acc.Length == 0 ? part : acc + Path.DirectorySeparatorChar + part;
+                dirs.Add(acc);
             }
         }
+        o.Progress?.Report((totalBytes, Math.Max(totalBytes, 1)));
         o.Log(L.S($"已写入 {files.Count} 个文件。", $"Wrote {files.Count} files."));
 
         // 2.5 RTX 50 系：用包内 OptiScaler/streamline/nvngx_dlssnr.dll（NVIDIA 原版 runtime，
@@ -156,9 +167,9 @@ public static class UnlockedInstaller
         // 5. 写安装清单
         var manifest = new InstallManifest
         {
-            Tag = Downloader.PackageTag,
+            Tag = PackageStore.MsfsPackageTag,
             InstalledAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-            PackageSha256 = Downloader.PackageSha256,
+            PackageSha256 = PackageStore.MsfsPackageSha256,
             GameDir = o.GameDir,
             Files = files,
             Dirs = dirs.OrderByDescending(d => d.Count(c => c == Path.DirectorySeparatorChar)).ToList(),

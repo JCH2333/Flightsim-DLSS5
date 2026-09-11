@@ -1,4 +1,4 @@
-using DLSS5Patcher.Core;
+﻿using DLSS5Patcher.Core;
 using DLSS5Patcher.Ui;
 
 namespace DLSS5Patcher;
@@ -336,13 +336,13 @@ public sealed class MainForm : Form
             : "";
         var confirm = MessageBox.Show(this,
             L.S($"即将为 {name} 安装 DLSS5 神经渲染（DLSS Unlocked / OptiScaler 路线）。\n\n" +
-                "• 自动下载约 460MB 组件包并校验\n" +
+                "• 组件包已内置于程序（约 440MB），安装全程无需联网\n" +
                 "• 自动备份被修改的文件与配置，可一键回滚\n" +
                 "• 安装后：游戏内按 Insert 键打开 OptiScaler 菜单\n" +
                 betaNote + "\n" +
                 "是否继续？",
                 $"About to install DLSS5 neural rendering for {name} (DLSS Unlocked / OptiScaler route).\n\n" +
-                "• Downloads and verifies a ~460MB component package\n" +
+                "• The component package is embedded in the program (~440MB) — no internet needed\n" +
                 "• Automatically backs up modified files and configs — one-click rollback\n" +
                 "• After install: press Insert in game to open the OptiScaler menu\n" +
                 betaNote + "\n" +
@@ -361,7 +361,6 @@ public sealed class MainForm : Form
                 ExeName = game.ExeName,
                 WorkingScale = _about.WorkingScale,
                 Generation = _gpu.Generation,
-                Proxy = _about.Proxy,
                 Log = Log,
                 Progress = progress,
             });
@@ -456,7 +455,6 @@ public sealed class MainForm : Form
                 GameDir = _gameXp12.GameDir,
                 ExePath = _gameXp12.ExePath,
                 KitDir = AppConfig.KitDir,
-                Proxy = _about.Proxy,
                 Log = Log,
             });
             MessageBox.Show(this,

@@ -10,13 +10,18 @@
     <RootNamespace>DLSS5Patcher</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
     <AssemblyTitle>MSFS DLSS5 神经渲染安装器</AssemblyTitle>
     <Product>MSFS DLSS5 Patcher</Product>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="assets\*" />
   </ItemGroup>
 
 </Project>

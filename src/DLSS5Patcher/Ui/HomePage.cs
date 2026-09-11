@@ -1,4 +1,4 @@
-using DLSS5Patcher.Core;
+﻿using DLSS5Patcher.Core;
 
 namespace DLSS5Patcher.Ui;
 
@@ -228,8 +228,8 @@ public sealed class HomePage : UserControl
     {
         _progress.Maximum = 100;
         _progress.Value = (int)Math.Clamp(received * 100 / Math.Max(total, 1), 0, 100);
-        _lblProgress.Text = L.S($"下载中: {received / 1024 / 1024} / {total / 1024 / 1024} MB",
-                                $"Downloading: {received / 1024 / 1024} / {total / 1024 / 1024} MB");
+        _lblProgress.Text = L.S($"安装进度: {received / 1024 / 1024} / {total / 1024 / 1024} MB",
+                                $"Progress: {received / 1024 / 1024} / {total / 1024 / 1024} MB");
     }
 
     public void Log(string s)

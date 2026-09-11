@@ -18,7 +18,8 @@ Official DLSS neural rendering (transformer models + Neural Rendering) ships onl
 
 - 🎮 **Three game cards**: MSFS 2024 / MSFS 2020 (Beta) / X-Plane 12 — each card keeps just two buttons: Install and Uninstall
 - 🌐 **Bilingual UI**: pick your language on first launch, switch anytime in Settings
-- 🖥️ **Dark card-style UI**, native WinForms single EXE (~150 MB self-contained, no .NET runtime needed), high-DPI / 4K ready
+- 📦 **Fully offline**: every install component (~440MB) is embedded in a single EXE — download once, install offline forever, zero network config
+- 🖥️ **Dark card-style UI**, native WinForms single EXE (~510 MB, self-contained), high-DPI / 4K ready
 - 🔒 **Safe & reversible**: installs back up every modified file and config; uninstall restores everything — saves and add-ons are never touched
 - 🧠 **Per-GPU-generation auto-tuning** of the NR runtime and defaults; RTX 50 series automatically gets NVIDIA's original runtime
 - 🧰 **GUI + CLI** in one binary (script/CI friendly)
@@ -36,7 +37,7 @@ Official DLSS neural rendering (transformer models + Neural Rendering) ships onl
 1. Download `DLSS5Patcher.exe` from [Releases](../../releases) (or build it yourself), right-click → **Run as administrator**
 2. Choose your interface language on first launch
 3. The tool auto-detects your GPU, driver and game folders (Steam / Microsoft Store, with manual browse as a fallback)
-4. **MSFS 2024**: click Install on its card (downloads a ~460MB package; proxy supported)
+4. **MSFS 2024**: click Install on its card (package is embedded — no internet needed, takes about a minute)
 5. **X-Plane 12**: click Select Kit... and point it at a DLSS5-Feeder kit folder, then click Install
 6. Verify in game:
    - MSFS 2024: press `Insert` → OptiScaler menu → DLSS Neural Rendering should show `Running - xx ms per frame`; set the game's Anti-Aliasing to **DLSS/DLAA**
@@ -95,6 +96,11 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 ```
 
 Requirements: .NET 8 SDK (`net8.0-windows` + WinForms), Windows 10/11 only.
+
+> Note: the install packages (`src/DLSS5Patcher/assets/`, ~440MB) are not stored in this repository due to size.
+> To build from source you must place them there yourself:
+> `dlss-unlocked-standalone-DLSSNR-v0.7.6.zip` (SHA256 `ca824acb…`), `ReShade64.dll` / `ReShade64.json` (extracted from the ReShade 6.8.0 Addon installer),
+> and `ReShade.fxh` / `ReShadeUI.fxh` / `DrawText.fxh`. Most users should simply grab a ready-made EXE from [Releases](../../releases).
 
 Code layout: `MainForm.cs` (shell + business logic), `Ui/Theme.cs` (design tokens & control factory), `Ui/HomePage.cs` (game cards + log), `Ui/TutorialPage.cs`, `Ui/AboutPage.cs`, `Ui/LanguageDialog.cs` (first-run language picker), `Core/` (installers, game locator, localization helper and config).
 

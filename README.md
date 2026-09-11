@@ -18,7 +18,8 @@
 
 - 🎮 **三张游戏卡片**：MSFS 2024 / MSFS 2020（Beta 实验版）/ X-Plane 12，每张卡片只保留「一键安装」「一键卸载」，极简操作
 - 🌐 **中英双语**：首次启动选择语言，设置页可随时切换
-- 🖥️ **深色卡片式 UI**，原生 WinForms 单 EXE（约 150 MB 自包含，无需 .NET 运行时），4K / 高 DPI 缩放已适配
+- 📦 **完全离线**：全部安装组件（约 440MB）内嵌于单个 EXE，下载一次即可永久离线安装、无需任何网络配置
+- 🖥️ **深色卡片式 UI**，原生 WinForms 单 EXE（约 510 MB，自包含），4K / 高 DPI 缩放已适配
 - 🔒 **安全可回滚**：安装自动备份被修改的文件与配置，卸载一键还原；卸载不影响存档与插件
 - 🧠 **按 GPU 世代自动适配** NR runtime 与默认参数；RTX 50 系自动切换 NVIDIA 原版 runtime
 - 🧰 **图形界面 + 命令行** 双模式（CI / 脚本友好）
@@ -36,7 +37,7 @@
 1. 前往 [Releases](../../releases) 下载 `DLSS5Patcher.exe`（或自行构建），右键**以管理员身份运行**
 2. 首次启动选择界面语言（中文 / English）
 3. 工具自动检测 GPU、驱动与游戏目录（Steam / 微软商店均可，也可手动指定）
-4. **MSFS 2024**：直接点卡片上的「一键安装」（自动下载约 460MB 组件包，支持代理）
+4. **MSFS 2024**：直接点卡片上的「一键安装」（组件包已内置，无需联网，全程约 1-2 分钟）
 5. **X-Plane 12**：先点「选择组件包...」选中 DLSS5-Feeder 组件包目录，再点「一键安装」
 6. 游戏内验证：
    - MSFS 2024：`Insert` 键 → OptiScaler 菜单 → DLSS Neural Rendering 应显示 `Running - xx ms per frame`；游戏抗锯齿需设为 **DLSS/DLAA**
@@ -95,6 +96,10 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 ```
 
 要求：.NET 8 SDK（`net8.0-windows` + WinForms），仅支持 Windows 10/11。
+
+> 注意：安装组件（`src/DLSS5Patcher/assets/`，约 440MB）因体积原因不入库。自行构建时需在该目录放入：
+> `dlss-unlocked-standalone-DLSSNR-v0.7.6.zip`（SHA256 `ca824acb…`）、`ReShade64.dll` / `ReShade64.json`（取自 ReShade 6.8.0 Addon 安装器）、
+> `ReShade.fxh` / `ReShadeUI.fxh` / `DrawText.fxh`。普通用户建议直接从 [Releases](../../releases) 下载现成 EXE。
 
 代码结构：`MainForm.cs`（外壳 + 业务逻辑）、`Ui/Theme.cs`（设计令牌与控件工厂）、`Ui/HomePage.cs`（三卡片 + 日志）、`Ui/TutorialPage.cs`、`Ui/AboutPage.cs`、`Ui/LanguageDialog.cs`（首启语言选择）、`Core/`（安装器、游戏定位、双语助手与配置）。
 
