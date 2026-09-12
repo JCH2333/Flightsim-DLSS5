@@ -19,6 +19,7 @@ Official DLSS neural rendering (transformer models + Neural Rendering) ships onl
 - 🎮 **Three game cards**: MSFS 2024 / MSFS 2020 (Beta) / X-Plane 12 — each card keeps just two buttons: Install and Uninstall
 - 🌐 **Bilingual UI**: pick your language on first launch, switch anytime in Settings
 - 📦 **Fully offline**: every install component (~440MB) is embedded in a single EXE — download once, install offline forever, zero network config
+- 🔄 **Auto-update**: checks GitHub Releases on launch and force-updates when a new version exists (mirror fallback + slow-transfer watchdog for both check and download, SHA256-verified, automatic swap & restart)
 - 🖥️ **Dark card-style UI**, native WinForms single EXE (~510 MB, self-contained), high-DPI / 4K ready
 - 🔒 **Safe & reversible**: installs back up every modified file and config; uninstall restores everything — saves and add-ons are never touched
 - 🧠 **Per-GPU-generation auto-tuning** of the NR runtime and defaults; RTX 50 series automatically gets NVIDIA's original runtime

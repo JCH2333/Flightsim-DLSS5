@@ -64,6 +64,9 @@ public sealed class MainForm : Form
 
         SelectNav(0);
         _ = RefreshAsync();
+
+        Updater.CleanLeftovers();
+        Shown += async (_, _) => await RunUpdateCheckAsync(startup: true);
     }
 
     // ───────────────────────────── 外壳 UI ─────────────────────────────
@@ -137,9 +140,50 @@ public sealed class MainForm : Form
         _about.MsfsBrowseRequested += () => BrowseForGame(0);
         _about.Msfs2020BrowseRequested += () => BrowseForGame(1);
         _about.XpPickKitRequested += PickKitDir;
+        _about.CheckUpdateRequested += () => _ = RunUpdateCheckAsync(startup: false);
     }
 
     private void Log(string s) => _home.Log(s);
+
+    // ───────────────────────────── 自动更新 ─────────────────────────────
+
+    /// <summary>
+    /// 检查 GitHub Release 更新。启动时静默：网络失败仅记日志（检测不到更新就无法强制）。
+    /// 一旦确认有新版本，弹出不可关闭的强制更新对话框，直至更新完成重启或用户退出程序。
+    /// </summary>
+    private async Task RunUpdateCheckAsync(bool startup)
+    {
+        try
+        {
+            var info = await Task.Run(() => Updater.CheckAsync());
+            if (info == null)
+            {
+                if (!startup)
+                    MessageBox.Show(this,
+                        L.S($"当前已是最新版本（v{Updater.CurrentVersion}）。", $"You already have the latest version (v{Updater.CurrentVersion})."),
+                        L.S("检查更新", "Check for Updates"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            Log(L.S($"检测到新版本 {info.Tag}（当前 v{Updater.CurrentVersion}），需要更新后才能继续使用。",
+                    $"Update {info.Tag} found (current v{Updater.CurrentVersion}) — update required to continue."));
+            using var dlg = new UpdateDialog(info);
+            dlg.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            if (startup)
+            {
+                Log(L.S("自动更新检查失败（网络不可达），本次跳过。", "Update check failed (network unreachable) — skipped this time."));
+            }
+            else
+            {
+                MessageBox.Show(this,
+                    L.S($"检查更新失败：{ex.Message}", $"Update check failed: {ex.Message}"),
+                    L.S("检查更新", "Check for Updates"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+    }
 
     // ───────────────────────────── 检测 ─────────────────────────────
 

@@ -19,6 +19,7 @@ public sealed class AboutPage : UserControl
     public event Action? MsfsBrowseRequested;
     public event Action? Msfs2020BrowseRequested;
     public event Action? XpPickKitRequested;
+    public event Action? CheckUpdateRequested;
 
     /// <summary>所选 WorkingScale（MSFS 安装时生效）。</summary>
     public string WorkingScale => _cboScale.SelectedItem?.ToString() ?? "0.5";
@@ -267,6 +268,12 @@ public sealed class AboutPage : UserControl
             l.Location = new Point(16, 40 + i * 22);
             card.Controls.Add(l);
         }
+
+        var btnCheck = Theme.MakeButton(L.S("检查更新", "Check for Updates"), primary: true);
+        btnCheck.Size = new Size(130, 32);
+        btnCheck.Location = new Point(832 - 130 - 16, 36);
+        btnCheck.Click += (_, _) => CheckUpdateRequested?.Invoke();
+        card.Controls.Add(btnCheck);
 
         Controls.Add(card);
     }
