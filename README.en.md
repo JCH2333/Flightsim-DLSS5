@@ -77,6 +77,7 @@ Official ReShade framework headers (ReShade.fxh etc.) are added automatically by
 - RTX 20/30 series: noticeable base-framerate cost (inherent to the approach)
 - XP12: motion vectors are shader-estimated — fast camera moves show brief ghosting
 - XP12 needs the `--allow_reshade` launch parameter (prevents the game from blocking the layer)
+- 8GB-VRAM cards may crash with VRAM overflow while DLSS5 is on (the game's own memory pressure): the installer auto-recommends WorkingScale by VRAM (8GB → 0.5, smaller → 0.35); lower it in Settings and reinstall if it still overflows
 - RTX 40/50 adaptation logic has not been widely verified on physical cards — feedback welcome
 - ⚠️ Do NOT accept the "Update available" prompt in the OptiScaler menu (the mainline build has no neural rendering)
 
