@@ -144,6 +144,12 @@ public sealed class TutorialPage : UserControl
         Gap();
 
         Heading(L.S("七、常见问题", "7. FAQ"));
+        Line(L.S("· 开 DLSS5 后游戏爆显存崩溃（DXGI_ERROR_DEVICE_REMOVED / 提示资源使用超出GPU内存容量）：",
+                 "· Game crashes with VRAM overflow while DLSS5 is on (DXGI_ERROR_DEVICE_REMOVED / \"resources exceed GPU memory\" toast):"));
+        Line(L.S("  8GB 显存显卡属高发。解决：设置页把 WorkingScale 降到 0.5（或 0.35）后重装，",
+                 "  common on 8GB cards. Fix: set WorkingScale to 0.5 (or 0.35) in Settings and reinstall,"));
+        Line(L.S("  并在游戏内降低纹理/地形分辨率；安装器已按显存自动推荐 WorkingScale。",
+                 "  and lower texture/terrain resolution in game. The installer now auto-recommends WorkingScale by VRAM."));
         Line(L.S("· 提示「驱动过低」：DLSS5 神经渲染 runtime 要求驱动 ≥ 616.56，先升级驱动。",
                  "· \"Driver too old\": the DLSS5 neural-render runtime needs driver ≥ 616.56 — update first."));
         Line(L.S("· 提示「游戏文件被占用」：游戏未完全关闭或有崩溃残留进程，重启电脑后重试。",

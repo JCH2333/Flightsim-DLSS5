@@ -171,7 +171,7 @@ public sealed class MainForm : Form
             _home.SetGpu(
                 L.S($"GPU: {(_gpu.Name.Length > 0 ? _gpu.Name : "未检测到 NVIDIA 显卡")}   |   驱动: {(_gpu.Driver.Length > 0 ? _gpu.Driver : "未知")}",
                     $"GPU: {(_gpu.Name.Length > 0 ? _gpu.Name : "No NVIDIA GPU detected")}   |   Driver: {(_gpu.Driver.Length > 0 ? _gpu.Driver : "unknown")}") +
-                (_gpu.IsNvidia ? $"   |   {_gpu.GenerationCn}" : ""),
+                (_gpu.IsNvidia ? $"   |   {_gpu.GenerationCn}   |   " + L.S($"显存 {_gpu.VramText}", $"VRAM {_gpu.VramText}") : ""),
                 _gpu.SupportedThisVersion);
 
             UpdateMsfs2024Card();

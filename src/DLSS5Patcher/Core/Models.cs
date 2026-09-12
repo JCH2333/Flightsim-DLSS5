@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 namespace DLSS5Patcher.Core;
@@ -13,7 +13,7 @@ public sealed class GameInstall
 
 public enum GpuGeneration { Unknown, Other, Turing, Ampere, Ada, Blackwell }
 
-public sealed record GpuInfo(string Name, string Driver, GpuGeneration Generation)
+public sealed record GpuInfo(string Name, string Driver, GpuGeneration Generation, int VramMb = 0)
 {
     public bool IsNvidia => Generation is not (GpuGeneration.Unknown or GpuGeneration.Other);
 
@@ -31,14 +31,33 @@ public sealed record GpuInfo(string Name, string Driver, GpuGeneration Generatio
     public bool SupportedThisVersion => Generation is GpuGeneration.Turing or GpuGeneration.Ampere
                                                       or GpuGeneration.Ada or GpuGeneration.Blackwell;
 
-    /// <summary>各世代的推荐 WorkingScale（模型工作分辨率占比）。</summary>
-    public string RecommendedWorkingScale => Generation switch
+    /// <summary>
+    /// 推荐 WorkingScale（模型工作分辨率占比）：按世代给基础值，再按显存封顶。
+    /// 神经渲染的显存开销随 WorkingScale 增长，8GB 级笔记本卡跑 1.0 会 OOM 崩溃（群友实测）。
+    /// VramMb == 0 表示未探测到显存，仅按世代推荐。
+    /// </summary>
+    public string RecommendedWorkingScale
     {
-        GpuGeneration.Turing or GpuGeneration.Ampere => "0.5",
-        GpuGeneration.Ada => "0.75",
-        GpuGeneration.Blackwell => "1.0",
-        _ => "0.5",
-    };
+        get
+        {
+            var byGen = Generation switch
+            {
+                GpuGeneration.Turing or GpuGeneration.Ampere => "0.5",
+                GpuGeneration.Ada => "0.75",
+                GpuGeneration.Blackwell => "1.0",
+                _ => "0.5",
+            };
+            if (VramMb <= 0) return byGen;
+
+            var cap = VramMb >= 16_000 ? "1.0" : VramMb >= 11_000 ? "0.75" : VramMb >= 8_000 ? "0.5" : "0.35";
+            return string.CompareOrdinal(byGen, cap) > 0 ? cap : byGen;
+        }
+    }
+
+    /// <summary>显存描述（用于状态行与支持排查）。</summary>
+    public string VramText => VramMb > 0
+        ? (VramMb >= 1024 ? $"{VramMb / 1024} GB" : $"{VramMb} MB")
+        : L.S("未知", "unknown");
 
     /// <summary>神经渲染 runtime 需要 616.56 及以上驱动。</summary>
     public bool DriverOk => DriverVersionAtLeast(616, 56);
@@ -54,12 +73,13 @@ public sealed record GpuInfo(string Name, string Driver, GpuGeneration Generatio
     public static GpuInfo Detect()
     {
         string name = "", driver = "";
+        int vramMb = 0;
 
         foreach (var exe in new[] { "nvidia-smi.exe", Path.Combine(Environment.SystemDirectory, "nvidia-smi.exe") })
         {
             try
             {
-                var psi = new ProcessStartInfo(exe, "--query-gpu=name,driver_version --format=csv,noheader")
+                var psi = new ProcessStartInfo(exe, "--query-gpu=name,driver_version,memory.total --format=csv,noheader")
                 {
                     RedirectStandardOutput = true,
                     UseShellExecute = false,
@@ -73,6 +93,12 @@ public sealed record GpuInfo(string Name, string Driver, GpuGeneration Generatio
                     var parts = line.Split(',');
                     name = parts[0].Trim();
                     driver = parts.Length > 1 ? parts[1].Trim() : "";
+                    if (parts.Length > 2)
+                    {
+                        // 形如 "8192 MiB"
+                        var m = System.Text.RegularExpressions.Regex.Match(parts[2], @"(\d+)");
+                        if (m.Success) vramMb = int.Parse(m.Groups[1].Value);
+                    }
                     break;
                 }
             }
@@ -94,7 +120,7 @@ public sealed record GpuInfo(string Name, string Driver, GpuGeneration Generatio
             catch { }
         }
 
-        return new GpuInfo(name, driver, Classify(name));
+        return new GpuInfo(name, driver, Classify(name), vramMb);
     }
 
     private static GpuGeneration Classify(string name)

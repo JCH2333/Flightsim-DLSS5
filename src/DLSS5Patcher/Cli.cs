@@ -10,7 +10,7 @@ internal static class Cli
         void Log(string s) => Console.WriteLine(s);
 
         var gpu = GpuInfo.Detect();
-        Log(L.S($"GPU: {gpu.Name} | 驱动 {gpu.Driver} | {gpu.GenerationCn}", $"GPU: {gpu.Name} | driver {gpu.Driver} | {gpu.GenerationCn}"));
+        Log(L.S($"GPU: {gpu.Name} | 驱动 {gpu.Driver} | 显存 {gpu.VramText} | {gpu.GenerationCn}", $"GPU: {gpu.Name} | driver {gpu.Driver} | VRAM {gpu.VramText} | {gpu.GenerationCn}"));
 
         switch (args[0].ToLowerInvariant())
         {
