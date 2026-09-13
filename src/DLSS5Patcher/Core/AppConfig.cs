@@ -26,6 +26,10 @@ public static class AppConfig
     public static long AnnReadId { get; set; } = 0;
     public static string AnnShownPopupIds { get; set; } = "";
 
+    /// <summary>用户协议：已同意的修订号（空 = 未同意）与同意时间（本地时间字符串）。</summary>
+    public static string AgreedRevision { get; set; } = "";
+    public static string AgreedAt { get; set; } = "";
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DLSS5Patcher", "config.txt");
 
@@ -59,6 +63,8 @@ public static class AppConfig
                 else if (key == "repo") RepoOverride = val;
                 else if (key == "annread") { if (long.TryParse(val, out var v)) AnnReadId = v; }
                 else if (key == "annshown") AnnShownPopupIds = val;
+                else if (key == "agreed") AgreedRevision = val;
+                else if (key == "agreedat") AgreedAt = val;
             }
         }
         catch { }
@@ -74,6 +80,7 @@ public static class AppConfig
                 $"lang={Lang}", $"kit={KitDir}", $"dir24={ManualMsfs2024Dir}", $"dir20={ManualMsfs2020Dir}",
                 $"exe24={ManualExe24}", $"exe20={ManualExe20}", $"exe12={ManualXp12Exe}", $"repo={RepoOverride}",
                 $"annread={AnnReadId}", $"annshown={AnnShownPopupIds}",
+                $"agreed={AgreedRevision}", $"agreedat={AgreedAt}",
             });
         }
         catch { }

@@ -62,6 +62,30 @@ public sealed class SponsorPage : Theme.AmbientPage
         _btnRetry.Visible = false;
         _btnRetry.Click += (_, _) => _ = LoadAsync();
         _card.Controls.Add(_btnRetry);
+
+        // 作者署名（点击访问 B 空间主页）
+        var author = new Label
+        {
+            Text = L.S($"作者：{AgreementContent.AuthorName}（点击访问 B 站主页）", $"Author: {AgreementContent.AuthorName} (click to visit Bilibili)"),
+            AutoSize = true,
+            ForeColor = Theme.Signal,
+            Font = new Font(Theme.FontUi, 9f, FontStyle.Bold),
+            BackColor = Color.Transparent,
+            Cursor = Cursors.Hand,
+        };
+        author.Location = new Point(_card.Width - 16 - author.PreferredWidth, 528);
+        author.Click += (_, _) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = AgreementContent.AuthorUrl, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, L.S("提示", "Notice"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
+        _card.Controls.Add(author);
     }
 
     /// <summary>主窗体在进入本页时调用：每次都重新拉取（与服务端换码即时生效一致）。</summary>

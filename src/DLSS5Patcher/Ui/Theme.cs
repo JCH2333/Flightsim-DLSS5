@@ -459,7 +459,8 @@ public static class Theme
         private readonly RichTextBox _rtb;
         private readonly Panel _fill = new();
         private bool _dragging;
-        private float _lineHeight = 19f;
+        private bool _userScrolled;
+        private float _lineHeight;   // 惰性实测：必须与 ClientSize 同为物理像素，否则 AtBottom 误判
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
@@ -484,9 +485,9 @@ public static class Theme
             rtb.TextChanged += (_, _) => UpdateThumb();
             rtb.VScroll += (_, _) => UpdateThumb();
             rtb.Resize += (_, _) => UpdateThumb();
-            rtb.FontChanged += (_, _) => { _lineHeight = rtb.Font.Height + 2f; UpdateThumb(); };
+            rtb.FontChanged += (_, _) => { _lineHeight = 0; UpdateThumb(); };
             // 注意：用 rtb 的 BeginInvoke（此时 ScrollIndicator 自身句柄还未创建，对它调用会抛异常）
-            rtb.HandleCreated += (_, _) => rtb.BeginInvoke(new Action(() => { _lineHeight = rtb.Font.Height + 2f; UpdateThumb(); }));
+            rtb.HandleCreated += (_, _) => rtb.BeginInvoke(new Action(UpdateThumb));
 
             MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { _dragging = true; DragTo(e.Y); } };
             MouseMove += (_, e) => { if (_dragging) DragTo(e.Y); };
@@ -506,13 +507,26 @@ public static class Theme
 
         private int FirstVisible => _rtb.IsHandleCreated ? SendMessage(_rtb.Handle, EM_GETFIRSTVISIBLELINE, IntPtr.Zero, IntPtr.Zero).ToInt32() : 0;
 
-        private int VisibleLines => Math.Max(1, (int)(_rtb.ClientSize.Height / _lineHeight));
+        private int VisibleLines
+        {
+            get
+            {
+                if (_lineHeight <= 0)
+                {
+                    // 用 rtb 自己的 Graphics 实测行高（与 ClientSize 同为物理像素，DPI 一致）
+                    using var g = _rtb.CreateGraphics();
+                    _lineHeight = _rtb.Font.GetHeight(g) + 2f;
+                }
+                return Math.Max(1, (int)(_rtb.ClientSize.Height / _lineHeight));
+            }
+        }
 
         /// <summary>滚轮路由调用：按行滚动并立即刷新滑块。</summary>
         public void ScrollLines(int lines)
         {
             if (!_rtb.IsHandleCreated || lines == 0 || LineCount <= VisibleLines) return;
             SendMessage(_rtb.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)lines);
+            _userScrolled = true;
             UpdateThumb();
         }
 
@@ -528,6 +542,7 @@ public static class Theme
             int delta = (int)Math.Round(ratio * scrollable) - FirstVisible;
             if (delta == 0) return;
             SendMessage(_rtb.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)delta);
+            _userScrolled = true;
             UpdateThumb();
         }
 
@@ -537,16 +552,41 @@ public static class Theme
             return Math.Max(24, (int)(Height * (float)visible / Math.Max(1, total)));
         }
 
+        /// <summary>内容是否已滚动到末尾（内容不足一屏时视为 true）。协议弹窗用它判定"已完整阅读"。</summary>
+        public bool AtBottom { get; private set; }
+
+        /// <summary>自最近一次 ResetReadState 后用户是否真的滚动过（滚轮或拖动）。用于协议强制阅读。</summary>
+        public bool HasUserScrolled => _userScrolled;
+
+        /// <summary>滚动到末尾时触发。</summary>
+        public event Action? ReachedBottom;
+
         private void UpdateThumb()
         {
             if (!_rtb.IsHandleCreated) return;
             int total = LineCount;
             int scrollable = total - VisibleLines;
-            if (scrollable <= 0) { _fill.Visible = false; return; }
+            if (scrollable <= 0)
+            {
+                _fill.Visible = false;
+                if (!AtBottom) { AtBottom = true; ReachedBottom?.Invoke(); }
+                return;
+            }
             int thumbH = ThumbHeight(total);
             int top = (int)((Height - thumbH) * ((float)Math.Min(FirstVisible, scrollable) / scrollable));
             _fill.Visible = true;
             _fill.SetBounds(0, Math.Clamp(top, 0, Height - thumbH), 4, thumbH);
+
+            bool atBottom = FirstVisible >= scrollable;
+            if (atBottom && !AtBottom) ReachedBottom?.Invoke();
+            AtBottom = atBottom;
+        }
+
+        /// <summary>重置已读状态（切换文档内容时调用）。</summary>
+        public void ResetReadState()
+        {
+            AtBottom = false;
+            _userScrolled = false;
         }
     }
 

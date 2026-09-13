@@ -24,6 +24,8 @@ public sealed class AboutPage : Theme.AmbientPage
     public event Action? XpBrowseRequested;
     public event Action? XpPickKitRequested;
     public event Action? CheckUpdateRequested;
+    public event Action? ViewAgreementRequested;
+    public event Action? RevokeAgreementRequested;
 
     /// <summary>所选 WorkingScale（MSFS 安装时生效）。</summary>
     public string WorkingScale => _cboScale.SelectedItem?.ToString() ?? "0.5";
@@ -36,9 +38,9 @@ public sealed class AboutPage : Theme.AmbientPage
 
         BuildLanguageBand(100);
         BuildManualSetup(218);
-        BuildDeclarationBand(506);
-        BuildQqCard(586);
-        BuildAboutBand(694);
+        BuildAgreementBand(506);
+        BuildQqCard(610);
+        BuildAboutBand(708);
     }
 
     // ───────────────────────────── 语言 + 安装选项 ─────────────────────────────
@@ -184,11 +186,13 @@ public sealed class AboutPage : Theme.AmbientPage
 
     // ───────────────────────────── 声明 ─────────────────────────────
 
-    private void BuildDeclarationBand(int y)
+    private Label _lblAgreeStatus = new();
+
+    private void BuildAgreementBand(int y)
     {
         var card = new Panel
         {
-            Size = new Size(ContentW, 68),
+            Size = new Size(ContentW, 94),
             Location = new Point(PadX, y),
             BackColor = Color.Transparent,
         };
@@ -209,17 +213,48 @@ public sealed class AboutPage : Theme.AmbientPage
             L.S("仅供个人学习交流使用，请支持正版游戏；若你为此工具付费，请立即退款并举报。",
                 "For personal study only. Support official releases; if you paid for this tool, refund immediately and report the seller."),
             Theme.FromHex("#e9ce95"), 8.25f);
-        sub.Location = new Point(16, 34);
+        sub.Location = new Point(16, 32);
         card.Controls.Add(sub);
 
+        _lblAgreeStatus.AutoSize = false;
+        _lblAgreeStatus.Size = new Size(430, 18);
+        _lblAgreeStatus.Location = new Point(16, 60);
+        _lblAgreeStatus.ForeColor = Theme.TextMuted;
+        _lblAgreeStatus.Font = new Font(Theme.FontUi, 8.25f);
+        _lblAgreeStatus.AutoEllipsis = true;
+        card.Controls.Add(_lblAgreeStatus);
+
+        var btnView = Theme.MakeButton(L.S("查看协议", "View Agreement"), height: 32);
+        btnView.Size = new Size(110, 32);
+        btnView.Location = new Point(ContentW - 110 - 100 - 24, 16);
+        btnView.Click += (_, _) => ViewAgreementRequested?.Invoke();
+        card.Controls.Add(btnView);
+
+        var btnRevoke = Theme.MakeButton(L.S("撤回同意", "Revoke"), height: 32);
+        btnRevoke.Size = new Size(100, 32);
+        btnRevoke.Location = new Point(ContentW - 100 - 16, 16);
+        btnRevoke.Click += (_, _) => RevokeAgreementRequested?.Invoke();
+        card.Controls.Add(btnRevoke);
+
         Controls.Add(card);
+        SetAgreementStatus();
+    }
+
+    /// <summary>刷新协议同意状态行。</summary>
+    public void SetAgreementStatus()
+    {
+        _lblAgreeStatus.Text = AppConfig.AgreedRevision == Ui.AgreementContent.Revision
+            ? L.S($"协议状态：已同意（修订 {AppConfig.AgreedRevision} · {AppConfig.AgreedAt}）",
+                  $"Agreement: accepted (revision {AppConfig.AgreedRevision}, {AppConfig.AgreedAt})")
+            : L.S("协议状态：未同意 —— 下次启动将要求重新阅读并同意",
+                  "Agreement: not accepted — you will be asked again on next launch");
     }
 
     // ───────────────────────────── 粉丝群 ─────────────────────────────
 
     private void BuildQqCard(int y)
     {
-        var card = Theme.MakeCard(ContentW, 96);
+        var card = Theme.MakeCard(ContentW, 88);
         card.Location = new Point(PadX, y);
         card.Fill = Theme.FromHex("#1a241f");
         card.BorderColor = Theme.SignalBorder;
@@ -284,7 +319,7 @@ public sealed class AboutPage : Theme.AmbientPage
 
     private void BuildAboutBand(int y)
     {
-        var card = Theme.MakeCard(ContentW, 96);
+        var card = Theme.MakeCard(ContentW, 88);
         card.Location = new Point(PadX, y);
 
         var ver = Assembly.GetExecutingAssembly().GetName().Version!;

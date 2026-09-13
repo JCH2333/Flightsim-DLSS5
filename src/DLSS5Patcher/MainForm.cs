@@ -351,6 +351,25 @@ public sealed class MainForm : Form
         _about.XpBrowseRequested += () => BrowseForGame(2);
         _about.XpPickKitRequested += PickKitDir;
         _about.CheckUpdateRequested += () => _ = RunUpdateCheckAsync(startup: false);
+        _about.ViewAgreementRequested += () =>
+        {
+            using var dlg = new AgreementDialog(fromSettings: true);
+            dlg.ShowDialog(this);
+            _about.SetAgreementStatus();
+        };
+        _about.RevokeAgreementRequested += () =>
+        {
+            if (MessageBox.Show(this,
+                    L.S("撤回同意后，下次启动软件时将重新要求阅读并同意协议。确定撤回吗？",
+                        "After revoking, you will be asked to read and accept the agreement again on next launch. Revoke now?"),
+                    L.S("撤回同意", "Revoke agreement"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+            AppConfig.AgreedRevision = "";
+            AppConfig.AgreedAt = "";
+            AppConfig.Save();
+            AppLog.Info(L.S("用户撤回了协议同意", "User revoked the agreement consent"));
+            _about.SetAgreementStatus();
+        };
         _ann.Read += maxId =>
         {
             if (maxId <= AppConfig.AnnReadId) return;
