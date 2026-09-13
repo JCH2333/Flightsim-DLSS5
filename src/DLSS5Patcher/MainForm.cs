@@ -141,14 +141,26 @@ public sealed class MainForm : Form
         {
             const int WM_NCHITTEST = 0x84;
             const int WM_NCLBUTTONDOWN = 0xA1;
-            base.WndProc(ref m);
-            if (m.Msg == WM_NCHITTEST && m.Result.ToInt32() == 1)   // HTCLIENT → HTCAPTION
-                m.Result = (IntPtr)HTCAPTION;
+
+            // NCHITTEST：把面板客户区报告为 HTCAPTION（标题栏）
+            if (m.Msg == WM_NCHITTEST)
+            {
+                base.WndProc(ref m);
+                if (m.Result.ToInt32() == 1)
+                    m.Result = (IntPtr)HTCAPTION;
+                return;
+            }
+
+            // 关键：必须在 base 之前拦截 WM_NCLBUTTONDOWN+HTCAPTION，
+            // 否则 base 的默认处理会进入拖动循环把面板自己拖走（阻塞到松开鼠标，转发永远来不及）
             if (m.Msg == WM_NCLBUTTONDOWN && m.WParam.ToInt32() == HTCAPTION)
             {
                 ReleaseCapture();
                 SendMessage(FindForm().Handle, WM_NCLBUTTONDOWN, HTCAPTION, IntPtr.Zero);
+                return;
             }
+
+            base.WndProc(ref m);
         }
     }
 
