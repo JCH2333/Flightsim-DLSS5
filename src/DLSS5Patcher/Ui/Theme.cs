@@ -577,10 +577,15 @@ public static class Theme
             const int WM_MOUSEWHEEL = 0x020A;
             if (m.Msg != WM_MOUSEWHEEL) return false;
 
+            // 有模态弹窗时（ActiveForm=弹窗），跳过被遮挡页面上的宿主，
+            // 否则弹窗内容区收不到滚轮（会被背后页面的宿主吞掉）。
+            var active = Form.ActiveForm;
+
             var pos = Cursor.Position;
             foreach (var (host, bar) in _pairs)
             {
                 if (!host.Visible || !host.IsHandleCreated) continue;
+                if (active != null && host.FindForm() != active) continue;
                 if (!host.RectangleToScreen(host.ClientRectangle).Contains(pos)) continue;
 
                 int raw = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);   // 滚轮刻度（有符号短整型）

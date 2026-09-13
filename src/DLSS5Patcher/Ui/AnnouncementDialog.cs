@@ -4,11 +4,13 @@ namespace DLSS5Patcher.Ui;
 
 /// <summary>
 /// 启动公告弹窗（对齐 GSX AnnouncementPopupDialog）：类别/置顶标签 + 标题 + 时间 + 内容 + "我知道了"。
+/// 内容区与使用教程页同一套滚动方案：ScrollBars.None + WheelRouter 滚轮 + ScrollIndicator 拖动滑块。
 /// 逐条展示：关闭后由主窗体弹出下一条待展示公告。
 /// </summary>
 public sealed class AnnouncementDialog : Form
 {
     private readonly Theme.GlassButton _btnOk = new();
+    private readonly Theme.GlassButton _btnClose = new();
 
     public AnnouncementDialog(AnnouncementsClient.Announcement announcement)
     {
@@ -29,10 +31,17 @@ public sealed class AnnouncementDialog : Form
         megaphone.Location = new Point(30, 26);
         Controls.Add(megaphone);
 
+        // ✕ 关闭按钮（右上角）；与"我知道了"等效：关闭 = 已读
+        _btnClose.Text = "✕";
+        _btnClose.Size = new Size(30, 30);
+        _btnClose.Location = new Point(480 - 30 - 14, 14);
+        _btnClose.Click += (_, _) => { DialogResult = DialogResult.OK; Close(); };
+        Controls.Add(_btnClose);
+
         var tags = new FlowLayoutPanel
         {
             Location = new Point(30, 72),
-            Size = new Size(420, 30),
+            Size = new Size(360, 30),
             BackColor = Color.Transparent,
             AutoSize = true,
             WrapContents = false,
@@ -44,26 +53,30 @@ public sealed class AnnouncementDialog : Form
 
         var title = Theme.MakeLabel(announcement.Title, Theme.Text, 13.5f, bold: true);
         title.Location = new Point(30, 106);
-        title.MaximumSize = new Size(420, 0);
+        title.MaximumSize = new Size(420, 60);   // 最多两行，超出省略；标题区固定 106..168
         Controls.Add(title);
 
         var time = Theme.MakeLabel(AnnouncementsClient.FormatTime(announcement.CreatedAt), Theme.TextMuted, 8.5f);
-        time.Location = new Point(30, title.Bottom + 10);
+        time.Location = new Point(30, 168);
         Controls.Add(time);
 
+        // 内容区：固定矩形 + 四向锚定，与标题区/按钮区互不重叠；
+        // 与使用教程页同一套滚动方案（ScrollBars.None + 滚轮路由 + 拖动滑块）
         var content = new RichTextBox
         {
             Text = announcement.Content,
             ReadOnly = true,
             BorderStyle = BorderStyle.None,
             BackColor = Theme.SurfaceRaised,
-            ScrollBars = RichTextBoxScrollBars.Vertical,
+            ScrollBars = RichTextBoxScrollBars.None,
             Font = new Font(Theme.FontUi, 9.5f),
-            Location = new Point(30, time.Bottom + 14),
-            Size = new Size(420, 190),
+            Location = new Point(30, 200),
+            Size = new Size(420, 186),
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
         };
         content.ForeColor = Theme.TextSecondary;
         Controls.Add(content);
+        Theme.AttachScrollIndicator(content, this, rightInset: 30, topInset: 200, height: 186);
 
         _btnOk.Text = L.S("我知道了", "Got it");
         _btnOk.Primary = true;
@@ -72,8 +85,7 @@ public sealed class AnnouncementDialog : Form
         _btnOk.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         _btnOk.Click += (_, _) => { DialogResult = DialogResult.OK; Close(); };
         Controls.Add(_btnOk);
-
-        _btnOk.Location = new Point(30, ClientSize.Height - 42 - 22);
+        // GlassButton 未实现 IButtonControl，ESC 快捷键不可用；关闭走 ✕ / 我知道了 两个按钮
 
         Shown += (_, _) => Theme.ApplyWindowChrome(this);
         Paint += (_, e) =>
@@ -91,6 +103,7 @@ public sealed class AnnouncementDialog : Form
             Scale(new SizeF(dpi, dpi));
             ClientSize = new Size((int)(480 * dpi), (int)(460 * dpi));
             _btnOk.Location = new Point((int)(30 * dpi), ClientSize.Height - (int)(42 * dpi) - (int)(22 * dpi));
+            _btnClose.Location = new Point(ClientSize.Width - (int)(30 * dpi) - (int)(14 * dpi), (int)(14 * dpi));
         }
     }
 
