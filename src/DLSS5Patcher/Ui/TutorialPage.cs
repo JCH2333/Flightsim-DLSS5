@@ -128,31 +128,21 @@ public sealed class TutorialPage : Theme.AmbientPage
                  "· Uninstall never touches your saves, add-ons or official game files (everything modified is backed up and restored)."));
         Gap();
 
-        Heading(L.S("六、出问题时应向作者提交的文件", "6. What to Send the Author When Something Goes Wrong"));
-        Line(L.S("安装失败或游戏内不生效时，请在 B站 一只剑齿虎呀 粉丝群（QQ 群：615523002）提交以下材料：",
-                 "If installation fails or the effect doesn't show in game, please provide the following in the Bilibili fan group of '一只剑齿虎呀' (QQ group: 615523002):"));
-        Line(L.S("1. 本工具主页面日志框的全部内容（点进日志框 Ctrl+A 全选复制）。",
-                 "1. The full content of the log box on the tool's main page (click into it, Ctrl+A, copy)."));
-        Line(L.S("2. 显卡型号与驱动版本（工具顶部已显示，截图即可）。",
-                 "2. GPU model and driver version (shown at the top of the tool — a screenshot is fine)."));
-        Line(L.S("3. MSFS 2024 问题另附：",
-                 "3. For MSFS 2024 issues, also attach:"));
-        Line(L.S("   · 游戏目录截图（能看到 dxgi.dll、OptiScaler.ini、nvngx_dlssnr.dll 是否存在）；",
-                 "   · A screenshot of the game folder (showing whether dxgi.dll, OptiScaler.ini and nvngx_dlssnr.dll exist);"));
-        Line(L.S("   · 游戏内 OptiScaler 菜单「DLSS Neural Rendering」展开后的截图；",
-                 "   · The in-game OptiScaler menu with \"DLSS Neural Rendering\" expanded;"));
-        Line(L.S("   · 游戏图形设置中抗锯齿选项的截图。",
-                 "   · The Anti-Aliasing option in the game's graphics settings."));
-        Line(L.S("4. XP12 问题另附：",
-                 "4. For XP12 issues, also attach:"));
-        Line(L.S("   · X-Plane 12 目录下的 Log.txt（XP 自带日志）；",
-                 "   · Log.txt from the X-Plane 12 folder (XP's own log);"));
-        Line(L.S("   · 游戏目录截图（能看到 dlss5-feed.addon64、deep-fried-chicken.addon64 是否存在）；",
-                 "   · A screenshot of the game folder (showing whether dlss5-feed.addon64 and deep-fried-chicken.addon64 exist);"));
-        Line(L.S("   · ReShade 菜单（Home 键）中 Deep Fried Chicken 标签页的截图。",
-                 "   · The Deep Fried Chicken tab of the ReShade menu (Home key)."));
-        Line(L.S("5. 你的操作系统版本（Win10 / Win11）。",
-                 "5. Your Windows version (Win10 / Win11)."));
+        Heading(L.S("六、出问题？请用「问题反馈」页", "6. Something Wrong? Use the Feedback Page"));
+        Line(L.S("1. 点击左侧「问题反馈」进入反馈页，环境信息（系统 / 显卡 / 驱动 / 游戏检测）会自动识别填好。",
+                 "1. Open \"Feedback\" in the sidebar — environment info (OS / GPU / driver / game detection) is filled in automatically."));
+        Line(L.S("2. 勾选出问题的游戏（可多选），工具会自动扫描并附加对应日志文件（大文件只取末尾 256KB）。",
+                 "2. Tick the affected game(s) — related log files are attached automatically (oversized logs are truncated to their last 256 KB)."));
+        Line(L.S("3. 认真填写问题描述（必填）：什么现象、何时出现、如何复现、游戏内设置等，越详细越容易定位。",
+                 "3. Describe the problem (required): what happens, when, how to reproduce, in-game settings — the more detail, the faster the fix."));
+        Line(L.S("4. 建议附上截图（最多 4 张、每张 ≤ 8MB）：游戏内报错弹窗、画面异常、安装失败提示等。",
+                 "4. Attach screenshots if possible (up to 4, each ≤ 8 MB): in-game error popups, visual glitches, installer failures..."));
+        Line(L.S("5. 点击「提交反馈」。成功后会显示反馈编号（形如 FB-20260914-xxxxxx）。",
+                 "5. Click \"Submit Feedback\". On success you'll get a feedback ID (like FB-20260914-xxxxxx)."));
+        Line(L.S("6. 把反馈编号发到粉丝群（QQ 群：615523002），维护者会按编号查看你的日志与截图并跟进修复。",
+                 "6. Share that ID in the fan group (QQ 615523002) — the maintainer will look up your logs and screenshots by ID and follow up."));
+        Line(L.S("· 提交频率限制：每 10 分钟 1 条、每天 10 条。反馈内容不会公开，仅用于定位和修复问题。",
+                 "· Rate limits: 1 per 10 minutes, 10 per day. Feedback is private and used only for diagnosis."));
         Gap();
 
         Heading(L.S("七、常见问题", "7. FAQ"));
