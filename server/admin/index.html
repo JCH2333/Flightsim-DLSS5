@@ -322,8 +322,8 @@ async function renderFeedback() {
     <span class="grow"></span><span class="muted" style="font-size:12.5px">点击行查看详情并标记已读</span>
   </div>
   <div class="card"><table>
-    <thead><tr><th style="width:190px">反馈编号</th><th style="width:86px">状态</th><th style="width:110px">版本</th><th style="width:200px">GPU</th><th>问题描述</th><th style="width:56px">附</th><th style="width:130px">提交时间</th></tr></thead>
-    <tbody id="fbRows"><tr><td colspan="7" class="empty">加载中...</td></tr></tbody>
+    <thead><tr><th style="width:110px">反馈码</th><th style="width:120px">用户名</th><th style="width:86px">状态</th><th style="width:110px">版本</th><th style="width:190px">GPU</th><th>问题描述</th><th style="width:56px">附</th><th style="width:130px">提交时间</th></tr></thead>
+    <tbody id="fbRows"><tr><td colspan="8" class="empty">加载中...</td></tr></tbody>
   </table></div>`;
   const load = async () => {
     const qs = new URLSearchParams({ page: '0', size: '50' });
@@ -331,9 +331,10 @@ async function renderFeedback() {
     const d = await api('/admin/feedback?' + qs);
     refreshUnread();
     const tb = document.getElementById('fbRows');
-    if (!d.content.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">暂无反馈</td></tr>'; return; }
+    if (!d.content.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">暂无反馈</td></tr>'; return; }
     tb.innerHTML = d.content.map(f => `<tr class="row" data-id="${f.id}" style="cursor:pointer">
-      <td class="mono">${f.read ? '' : '<span class="dot"></span>'}${f.id}</td>
+      <td class="mono">${f.read ? '' : '<span class="dot"></span>'}${esc(f.code || f.id)}${f.code ? `<span class="muted" style="font-size:11px;display:block">${esc(f.id)}</span>` : ''}</td>
+      <td class="ellipsis" style="max-width:120px">${esc(f.username || '匿名')}</td>
       <td><span class="badge ${f.status}">${({ pending: '待处理', processing: '处理中', completed: '已完成' })[f.status] || f.status}</span></td>
       <td class="mono" style="font-size:12px">${esc(f.version || '-')}</td>
       <td class="ellipsis" style="max-width:200px">${esc(f.gpu || '-')}</td>
@@ -351,9 +352,10 @@ async function detailFeedback(id, reload) {
   refreshUnread();
   const games = (r.games || []).map(g => `<span class="mini-tag">${esc(g.name)}：${esc(g.state)}</span>`).join(' ') || '-';
   const bd = modal(`
-    <button class="close">✕</button><h3>反馈详情 ${esc(r.id || id)}</h3>
+    <button class="close">✕</button><h3>反馈详情 ${esc(r.code || r.id || id)}</h3>
     <div class="kv">
       <span class="k">程序版本</span><span class="mono" style="font-size:12px">${esc(r.version || '-')}</span>
+      <span class="k">用户名</span><span>${esc(r.username || '匿名')}</span>
       <span class="k">操作系统</span><span>${esc(r.os || '-')}</span>
       <span class="k">运行时</span><span>${esc(r.runtime || '-')}</span>
       <span class="k">显卡 / 驱动</span><span>${esc((r.gpu && (r.gpu.name + '  |  驱动 ' + (r.gpu.driver || '-') + '  |  ' + (r.gpu.vram || ''))) || '-')}</span>
@@ -364,13 +366,13 @@ async function detailFeedback(id, reload) {
     <div class="field"><label>问题描述</label><div class="log-block" style="font-family:inherit;white-space:pre-wrap">${esc(r.description || '-')}</div></div>
     ${r.shotsData && r.shotsData.length ? `<div class="field"><label>截图（${r.shotsData.length}）</label><div class="shots">${r.shotsData.map(s => `<img src="${s.dataUrl}" title="${esc(s.name)}">`).join('')}</div></div>` : ''}
     ${r.logsFull && r.logsFull.length ? r.logsFull.map(l => `<div class="field"><label>日志：${esc(l.name)}</label><div class="log-block">${esc(l.content.length > 8000 ? l.content.slice(0, 8000) + '\n…（过长已截断）' : l.content)}</div></div>`).join('') : ''}
-    <div class="field"><label>处理状态与备注</label>
+    <div class="field"><label>处理状态与管理员回复</label>
       <div class="status-pick" id="stPick">
         <button data-s="pending" class="${r.status === 'pending' ? 'active' : ''}">待处理</button>
         <button data-s="processing" class="${r.status === 'processing' ? 'active' : ''}">处理中</button>
         <button data-s="completed" class="${r.status === 'completed' ? 'active' : ''}">已完成</button>
       </div>
-      <input id="stRemark" placeholder="处理备注（可选）" value="${esc(r.remark || '')}">
+      <input id="stRemark" placeholder="管理员回复（用户在客户端凭反馈码可查到；建议标记已完成时填写）" value="${esc(r.remark || '')}">
     </div>
     <div class="actions"><button id="stCancel">关闭</button><button id="stSave" class="primary">保存状态</button></div>`);
   let status = r.status || 'pending';

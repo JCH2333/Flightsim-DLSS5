@@ -2,7 +2,11 @@
 """DLSS5 站点 API 服务（127.0.0.1:8430，nginx 8420 反代 /repo/dlss5/api/ 与 /repo/dlss5/feedback）。
 
 公开接口（免登录）:
-  POST /repo/dlss5/feedback                      反馈提交（限流同旧版，v1.2.0 客户端兼容）
+  POST /repo/dlss5/feedback                      反馈提交（限流同旧版，v1.2.0 客户端兼容；新增可选 username，
+                                                 返回新增 feedbackCode 短码，旧客户端仍读 id 不受影响）
+  GET  /repo/dlss5/api/feedback/query/<code>     凭反馈码查进度（每 IP 每天 60 次）
+                                                 {code:200,data:{statusCode:PENDING|PROCESSED|EXPIRED|NOT_FOUND,
+                                                 createdAt,username,adminReply}}（同 GSX：已完成的反馈保留 30 天后查为 EXPIRED）
   GET  /repo/dlss5/api/announcements?page&size   已发布公告 {code:200,data:{content:[...]}}
   GET  /repo/dlss5/api/announcements/popup       弹窗公告   {code:200,data:[...]}
   GET  /repo/dlss5/api/assets/sponsor-qr         加密赞助码信封（nginx 直接回静态文件，见 nginx-repo.conf）
@@ -73,6 +77,10 @@ MAX_DESC = 8000
 MAX_LOGS = 20
 MAX_LOG_CHARS = 400_000
 MAX_SHOTS = 8
+MAX_USERNAME = 50
+QUERY_DAILY_LIMIT = 60          # 反馈码查询：每 IP 每天 60 次（与 GSX 一致）
+FB_RETAIN_DAYS = 30             # 已完成反馈的保留期，超期后查询返回 EXPIRED（与 GSX 一致）
+FB_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # 去掉易混的 I/O/0/1
 
 API = "/repo/dlss5/api"
 
@@ -148,6 +156,42 @@ def record_submit(ip, state):
     rec["count"] = rec.get("count", 0) + 1
     rec["last"] = time.time()
     save_state(state)
+
+
+def gen_fb_code(state):
+    """生成 FB-XXXXXX 短反馈码（去易混字符，查重后登记到 state.codes）。"""
+    codes = state.setdefault("codes", {})
+    for _ in range(50):
+        code = "FB-" + "".join(secrets.choice(FB_CODE_ALPHABET) for _ in range(6))
+        if code not in codes:
+            return code
+    raise RuntimeError("feedback code space exhausted")
+
+
+def fb_query_status(meta, report):
+    """GSX 语义：未处理=PENDING；已处理=PROCESSED；处理后超过保留期=EXPIRED。"""
+    if meta.get("status") != "completed":
+        return "PENDING"
+    done = meta.get("processedAt") or report.get("receivedAt") or ""
+    try:
+        done_ts = datetime.fromisoformat(done).timestamp() if done else 0
+    except Exception:
+        done_ts = 0
+    if done_ts and time.time() - done_ts > FB_RETAIN_DAYS * 86400:
+        return "EXPIRED"
+    return "PROCESSED"
+
+
+def check_query_rate(ip, state):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    rec = state.setdefault("qips", {}).setdefault(ip, {})
+    if rec.get("day") != today:
+        rec["day"], rec["count"] = today, 0
+    if rec.get("count", 0) >= QUERY_DAILY_LIMIT:
+        return "今日查询次数已达上限（每天 %d 次），请明天再试。" % QUERY_DAILY_LIMIT
+    rec["count"] = rec.get("count", 0) + 1
+    save_state(state)
+    return None
 
 
 # ───────────────────────────── 公告 ─────────────────────────────
@@ -314,6 +358,11 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == FB_PATH:
             return self._reply(405, {"ok": False, "error": "method not allowed"})
+
+        # 凭反馈码查询处理进度（公开；每 IP 每天 60 次）。兼容长编号（旧版已发给用户）与短码
+        m = re.match(r"^%s/feedback/query/([A-Za-z0-9\-]+)$" % re.escape(API), path)
+        if m:
+            return self._feedback_query(m.group(1))
 
         if path == API + "/announcements":
             page = int((qs.get("page") or ["0"])[0] or 0)
@@ -504,6 +553,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._reply(400, {"code": 400, "message": "状态非法"})
             if status:
                 meta["status"] = status
+                if status == "completed":
+                    meta["processedAt"] = now_iso()   # 反馈码查询的 EXPIRED 保留期从此刻起算
+                else:
+                    meta["processedAt"] = ""
             meta["remark"] = str(body.get("remark", meta.get("remark", "")))[:2000]
             save_json(os.path.join(fdir, "meta.json"), meta)
             return envelope_ok(self, meta)
@@ -588,6 +641,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(400, {"ok": False, "error": "invalid JSON"})
 
         desc = str(body.get("description", "") or "").strip()
+        username = str(body.get("username", "") or "").strip()[:MAX_USERNAME]
         logs = body.get("logs", [])
         shots = body.get("screenshots", [])
         if not desc and not logs:
@@ -600,6 +654,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(400, {"ok": False, "error": "截图数量超限。"})
 
         fid = "FB-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(2)
+        code = gen_fb_code(state)   # 短反馈码，供用户查询进度
         fdir = os.path.join(STORE_DIR, fid)
         os.makedirs(os.path.join(fdir, "logs"), exist_ok=True)
         os.makedirs(os.path.join(fdir, "shots"), exist_ok=True)
@@ -635,6 +690,8 @@ class Handler(BaseHTTPRequestHandler):
 
         report = {
             "id": fid,
+            "code": code,
+            "username": username,
             "receivedAt": datetime.now(timezone.utc).isoformat(),
             "ip": ip,
             "app": body.get("app"),
@@ -649,12 +706,42 @@ class Handler(BaseHTTPRequestHandler):
         }
         save_json(os.path.join(fdir, "report.json"), report)
         save_json(os.path.join(fdir, "meta.json"), {"read": False, "status": "pending", "remark": ""})
+        state["codes"][code] = fid
+        save_state(state)
 
         record_submit(ip, state)
         with open(os.path.join(STORE_DIR, "submissions.log"), "a", encoding="utf-8") as f:
-            f.write("%s %s ip=%s ver=%s desc=%r\n" % (datetime.now(timezone.utc).isoformat(), fid, ip, body.get("version"), desc[:80]))
+            f.write("%s %s code=%s ip=%s ver=%s user=%r desc=%r\n" % (
+                datetime.now(timezone.utc).isoformat(), fid, code, ip, body.get("version"), username, desc[:80]))
 
-        self._reply(200, {"ok": True, "id": fid})
+        self._reply(200, {"ok": True, "id": fid, "feedbackCode": code})
+
+    def _feedback_query(self, raw):
+        """凭反馈码查进度：statusCode=PENDING|PROCESSED|EXPIRED|NOT_FOUND（NOT_FOUND 也是 200，与 GSX 一致）。"""
+        ip = self.headers.get("X-Real-IP") or self.client_address[0]
+        state = load_state()
+        reason = check_query_rate(ip, state)
+        if reason:
+            return self._reply(429, {"code": 429, "message": reason})
+
+        code = raw.strip().upper()
+        fid = state.get("codes", {}).get(code)
+        if fid is None and re.match(r"^FB-[0-9]{8}-[0-9]{6}-[0-9A-F]{4}$", code):
+            fid = code.lower() if os.path.isdir(os.path.join(STORE_DIR, code.lower())) else code
+            if not os.path.isdir(os.path.join(STORE_DIR, fid)):
+                fid = None
+        fdir = os.path.join(STORE_DIR, fid) if fid else None
+        if not fdir or not os.path.isdir(fdir):
+            return envelope_ok(self, {"statusCode": "NOT_FOUND"})
+
+        report = load_json(os.path.join(fdir, "report.json"), {})
+        meta = load_json(os.path.join(fdir, "meta.json"), {})
+        return envelope_ok(self, {
+            "statusCode": fb_query_status(meta, report),
+            "createdAt": report.get("receivedAt", ""),
+            "username": str(report.get("username", "") or ""),
+            "adminReply": str(meta.get("remark", "") or ""),
+        })
 
     def _fb_detail(self, fid):
         if not re.match(r"^FB-[0-9A-Za-z\-]+$", fid):
@@ -712,6 +799,8 @@ def _fb_scan():
         gpu = report.get("gpu") or {}
         out.append({
             "id": fid,
+            "code": report.get("code", ""),
+            "username": str(report.get("username", "") or ""),
             "receivedAt": report.get("receivedAt", ""),
             "ip": report.get("ip", ""),
             "version": report.get("version", ""),
