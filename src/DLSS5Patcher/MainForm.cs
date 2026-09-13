@@ -52,6 +52,7 @@ public sealed class MainForm : Form
 
         BuildTitleBar();
         BuildSidebar();
+        Theme.WheelRouter.Install();   // 悬停即滚：教程/公告/反馈描述等 RichTextBox 无需焦点即可滚轮
 
         var content = new Panel
         {

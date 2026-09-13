@@ -34,6 +34,11 @@ public sealed class TutorialPage : Theme.AmbientPage
         Controls.Add(panel);
 
         BuildContent();
+
+        // AppendText 会把内容滚到底部；打开页面应从顶部开始阅读
+        _rtb.SelectionStart = 0;
+        _rtb.SelectionLength = 0;
+        _rtb.ScrollToCaret();
     }
 
     private void Add(string text, Color color, float size = 9f, bool bold = false)

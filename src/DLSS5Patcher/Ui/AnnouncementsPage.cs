@@ -151,5 +151,6 @@ public sealed class AnnouncementsPage : Theme.AmbientPage
 
         _list.SelectionStart = 0;
         _list.SelectionLength = 0;
+        _list.ScrollToCaret();
     }
 }

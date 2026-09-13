@@ -62,11 +62,6 @@ public sealed class SponsorPage : Theme.AmbientPage
         _btnRetry.Visible = false;
         _btnRetry.Click += (_, _) => _ = LoadAsync();
         _card.Controls.Add(_btnRetry);
-
-        var note = Theme.MakeLabel(L.S("微信扫码赞助，金额完全自愿。", "Scan with WeChat to sponsor — the amount is entirely up to you."),
-            Theme.TextMuted, 9f);
-        note.Location = new Point(16, 526);
-        _card.Controls.Add(note);
     }
 
     /// <summary>主窗体在进入本页时调用：每次都重新拉取（与服务端换码即时生效一致）。</summary>

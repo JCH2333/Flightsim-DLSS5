@@ -448,16 +448,22 @@ public static class Theme
     }
 
     /// <summary>
-    /// 自绘滚动指示条（贴在 RichTextBox 右缘的 4px 细轨，替代系统白色滚动条视觉）。
-    /// RichTextBox 自身需设 ScrollBars.None（滚轮/键盘仍可滚动）。
+    /// 自绘滚动条（贴在 RichTextBox 右缘的细轨 + 可拖动滑块，替代系统白色滚动条视觉）。
+    /// RichTextBox 自身需设 ScrollBars.None；滚轮由 WheelRouter 全局路由（悬停即滚，无需焦点）。
     /// </summary>
     public sealed class ScrollIndicator : Panel
     {
         private readonly RichTextBox _rtb;
         private readonly Panel _fill = new();
+        private bool _dragging;
 
         [DllImport("user32.dll")]
         private static extern bool GetScrollInfo(IntPtr hwnd, int bar, ref SCROLLINFO info);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        private const int EM_LINESCROLL = 0x00B6;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct SCROLLINFO
@@ -474,43 +480,138 @@ public static class Theme
         public ScrollIndicator(RichTextBox rtb)
         {
             _rtb = rtb;
-            Size = new Size(4, rtb.Height);
-            BackColor = FromHex("#353630");
+            Size = new Size(12, rtb.Height);
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+            SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+
             _fill.BackColor = Signal;
             _fill.Size = new Size(4, 12);
             _fill.Visible = false;
             Controls.Add(_fill);
+
             rtb.VScroll += (_, _) => UpdateThumb();
             rtb.TextChanged += (_, _) => UpdateThumb();
             // 注意：用 rtb 的 BeginInvoke（此时 ScrollIndicator 自身句柄还未创建，对它调用会抛异常）
             rtb.HandleCreated += (_, _) => rtb.BeginInvoke(new Action(UpdateThumb));
+
+            MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { _dragging = true; DragTo(e.Y); } };
+            MouseMove += (_, e) => { if (_dragging) DragTo(e.Y); };
+            MouseUp += (_, e) => { if (e.Button == MouseButtons.Left) _dragging = false; };
+            MouseLeave += (_, _) => { _dragging = false; };
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            // 4px 细轨画在条带最左侧，其余为透明命中区（方便拖拽）
+            using var track = new SolidBrush(FromHex("#353630"));
+            e.Graphics.FillRectangle(track, 0, 0, 4, Height);
+            base.OnPaint(e);
+        }
+
+        private SCROLLINFO? Info()
+        {
+            if (!_rtb.IsHandleCreated) return null;
+            var si = new SCROLLINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<SCROLLINFO>(), fMask = 0x17 };
+            return GetScrollInfo(_rtb.Handle, 1, ref si) ? si : null;   // SB_VERT
+        }
+
+        private int ThumbHeight(SCROLLINFO si)
+        {
+            return Math.Max(24, (int)(Height * (double)si.nPage / (si.nMax + 1)));
+        }
+
+        private void DragTo(int y)
+        {
+            var si = Info();
+            if (si == null) return;
+            int thumbH = ThumbHeight(si.Value);
+            int rail = Height - thumbH;
+            if (rail <= 0) return;
+            double ratio = (y - thumbH / 2.0) / rail;
+            ratio = Math.Clamp(ratio, 0.0, 1.0);
+            int span = si.Value.nMax - (int)si.Value.nPage + 1;   // nPos 可达的最大值
+            if (span <= 0) return;
+            int delta = (int)Math.Round(ratio * span) - si.Value.nPos;
+            if (delta == 0) return;
+            SendMessage(_rtb.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)delta);
+            UpdateThumb();
         }
 
         private void UpdateThumb()
         {
-            if (_rtb.IsHandleCreated == false) return;
-            var si = new SCROLLINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<SCROLLINFO>(), fMask = 0x17 };
-            if (!GetScrollInfo(_rtb.Handle, 1, ref si)) return;   // SB_VERT
-            var span = si.nMax - (int)si.nPage + 1;
+            var si = Info();
+            if (si == null) return;
+            var span = si.Value.nMax - (int)si.Value.nPage + 1;
             if (span <= 0) { _fill.Visible = false; return; }
-            var trackH = Height;
-            var thumbH = Math.Max(24, (int)(trackH * (double)si.nPage / (si.nMax + 1)));
-            var top = (int)((trackH - thumbH) * ((double)si.nPos / span));
+            int thumbH = ThumbHeight(si.Value);
+            int top = (int)((Height - thumbH) * ((double)si.Value.nPos / span));
             _fill.Visible = true;
-            _fill.SetBounds(0, Math.Clamp(top, 0, trackH - thumbH), 4, thumbH);
+            _fill.SetBounds(0, Math.Clamp(top, 0, Height - thumbH), 4, thumbH);
         }
     }
 
-    /// <summary>给多行 RichTextBox 挂上细滚动指示条（置于指定宿主的右上内侧）。</summary>
+    /// <summary>
+    /// 全局滚轮路由：鼠标悬停在已注册宿主区域内时，滚轮直接滚动其 RichTextBox——
+    /// 不需要先点击取得焦点（TextBoxBase 没焦点时收不到 WM_MOUSEWHEEL，这是教程页滚不动的原因）。
+    /// 在主窗体构造时调用 Install() 安装一次。
+    /// </summary>
+    public sealed class WheelRouter : IMessageFilter
+    {
+        public static readonly WheelRouter Default = new();
+        private static bool _installed;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        private readonly List<(Control Host, RichTextBox Target)> _pairs = new();
+        private WheelRouter() { }
+
+        public static void Install()
+        {
+            if (_installed) return;
+            Application.AddMessageFilter(Default);
+            _installed = true;
+        }
+
+        public void Register(Control host, RichTextBox target) => _pairs.Add((host, target));
+
+        public bool PreFilterMessage(ref Message m)
+        {
+            const int WM_MOUSEWHEEL = 0x020A;
+            const int EM_LINESCROLL = 0x00B6;
+            if (m.Msg != WM_MOUSEWHEEL) return false;
+
+            var pos = Cursor.Position;
+            foreach (var (host, target) in _pairs)
+            {
+                if (!host.Visible || !host.IsHandleCreated) continue;
+                if (!host.RectangleToScreen(host.ClientRectangle).Contains(pos)) continue;
+
+                if (target.IsHandleCreated)
+                {
+                    int raw = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);   // 滚轮刻度（有符号短整型）
+                    int lines = -Math.Sign(raw) * 5;                          // 上滚为正 → 向上滚
+                    if (lines != 0)
+                        SendMessage(target.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)lines);
+                }
+                return true;   // 吞掉滚轮消息，避免它落到焦点控件上
+            }
+            return false;
+        }
+    }
+
+    /// <summary>给多行 RichTextBox 挂上细滚动条（置于指定宿主的右上内侧），并注册滚轮路由。</summary>
     public static ScrollIndicator AttachScrollIndicator(RichTextBox rtb, Control host, int rightInset, int topInset, int height)
     {
         var indicator = new ScrollIndicator(rtb)
         {
-            Size = new Size(4, height),
-            Location = new Point(host.ClientSize.Width - rightInset - 4, topInset),
+            Size = new Size(12, height),
+            Location = new Point(host.ClientSize.Width - rightInset - 12, topInset),
         };
         host.Controls.Add(indicator);
         indicator.BringToFront();
+        WheelRouter.Default.Register(host, rtb);
         return indicator;
     }
 
