@@ -31,6 +31,7 @@ public sealed class AgreementDialog : Form
         Size = new Size(620, 660);
         BackColor = Theme.FromHex("#1a1c18");
         TopMost = !fromSettings;
+        Opacity = 0;   // Fx.FadeIn 渐显
 
         var head = Theme.MakeEyebrow("FREE SOFTWARE NOTICE");
         head.Location = new Point(30, 22);
@@ -115,6 +116,7 @@ public sealed class AgreementDialog : Form
         Shown += (_, _) =>
         {
             Theme.ApplyWindowChrome(this);
+            Fx.FadeIn(this, 220, 10);
             SwitchTab(0);   // 先填充正文
             _bars[0] = Theme.AttachScrollIndicator(_text, this, rightInset: 30, topInset: 152, height: 360);
             _bars[0].ReachedBottom += () => MarkRead(_active);   // 当前页签滚动到底 → 已读

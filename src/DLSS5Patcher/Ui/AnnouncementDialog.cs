@@ -20,6 +20,7 @@ public sealed class AnnouncementDialog : Form
         Size = new Size(480, 460);
         BackColor = Theme.FromHex("#1a1c18");
         TopMost = true;
+        Opacity = 0;   // Fx.FadeIn 渐显
 
         var megaphone = new Label
         {
@@ -87,7 +88,11 @@ public sealed class AnnouncementDialog : Form
         Controls.Add(_btnOk);
         // GlassButton 未实现 IButtonControl，ESC 快捷键不可用；关闭走 ✕ / 我知道了 两个按钮
 
-        Shown += (_, _) => Theme.ApplyWindowChrome(this);
+        Shown += (_, _) =>
+        {
+            Theme.ApplyWindowChrome(this);
+            Fx.FadeIn(this, 220, 8);
+        };
         Paint += (_, e) =>
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
