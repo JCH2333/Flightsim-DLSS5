@@ -337,7 +337,7 @@ public sealed class MainForm : Form
         if (!ReferenceEquals(old, next))
         {
             int oldIdx = old == null ? -1 : Array.IndexOf(_pages, old);
-            Fx.AnimatePageSwitch(_contentHost!, old, next, idx > oldIdx ? 1 : -1);   // 新页按导航方向轻推淡入
+            Fx.AnimatePageSwitch(_contentHost!, old, next);   // GSX 同款：旧页淡出上浮，新页自下方升入
             _visiblePage = next;
         }
         for (int i = 0; i < _nav.Length; i++)
