@@ -35,3 +35,6 @@ make_rollback.py
 
 # Embedded install packages (too large for git; see README build notes)
 src/DLSS5Patcher/assets/
+server/keys/
+server/dlss5/
+server/badrepo/

@@ -61,9 +61,9 @@ public static class UnlockedInstaller
     }
 
     public static async Task<InstallManifest> InstallAsync(InstallOptions o, CancellationToken ct = default)
-        => await Task.Run(() => InstallCore(o, ct), ct);
+        => await Task.Run(async () => await InstallCore(o, ct), ct);
 
-    private static InstallManifest InstallCore(InstallOptions o, CancellationToken ct)
+    private static async Task<InstallManifest> InstallCore(InstallOptions o, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         o.Log(L.S($"目标游戏目录：{o.GameDir}", $"Target game folder: {o.GameDir}"));
@@ -74,11 +74,14 @@ public static class UnlockedInstaller
             throw new InvalidOperationException(
                 "游戏目录已存在第三方 dxgi.dll（可能是 ReShade / 其他注入器），与 OptiScaler 冲突。请先备份并移除它，再重新安装。");
 
-        // 1. 打开内置组件包（嵌入资源，无网络）
+        // 1. 确保组件包就绪（缓存 → 离线目录 → 服务器/GitHub 下载，SHA256 校验）
+        await PackageDownloader.EnsureAsync(PackageCatalog.MsfsPackage, o.Log, o.Progress, ct);
+
+        // 2. 打开组件包（再次完整校验）
         using var zip = new ZipArchive(PackageStore.OpenMsfsPackage(msg => o.Log(msg)), ZipArchiveMode.Read);
 
-        // 2. 解压到游戏目录
-        o.Log(L.S("从内置组件包解压（约 440MB，视磁盘速度需一两分钟）...", "Extracting the embedded package (~440MB, may take a minute or two)..."));
+        // 3. 解压到游戏目录
+        o.Log(L.S("从组件包解压（约 440MB，视磁盘速度需一两分钟）...", "Extracting the package (~440MB, may take a minute or two)..."));
         var files = new List<string>();
         var dirs = new HashSet<string>();
         long totalBytes = zip.Entries.Where(e => !string.IsNullOrEmpty(e.Name)).Sum(e => e.Length);
@@ -169,7 +172,7 @@ public static class UnlockedInstaller
         {
             Tag = PackageStore.MsfsPackageTag,
             InstalledAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-            PackageSha256 = PackageStore.MsfsPackageSha256,
+            PackageSha256 = PackageCatalog.MsfsPackage.Sha256,
             GameDir = o.GameDir,
             Files = files,
             Dirs = dirs.OrderByDescending(d => d.Count(c => c == Path.DirectorySeparatorChar)).ToList(),

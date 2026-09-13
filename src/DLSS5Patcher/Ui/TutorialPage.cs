@@ -57,8 +57,8 @@ public sealed class TutorialPage : UserControl
         Heading(L.S("二、微软模拟飞行 2024（OptiScaler 路线）", "2. Microsoft Flight Simulator 2024 (OptiScaler route)"));
         Line(L.S("1. 在「一键安装」页的 MSFS 2024 卡片点击「一键安装」。",
                  "1. On the One-Click Install page, click Install on the MSFS 2024 card."));
-        Line(L.S("2. 组件包已内置在程序中（约 440MB），安装全程无需联网、无需代理。",
-                 "2. The component package is embedded in the program (~440MB) — no internet or proxy needed."));
+        Line(L.S("2. 首次安装自动从服务器下载组件包（约 440MB，服务器 + GitHub 多源自动切换，SHA256 校验）；下载后本地缓存，之后可离线重装。",
+                 "2. The first install auto-downloads the package (~440MB; own server with GitHub fallback, SHA256-verified). It is cached locally — offline reinstalls afterwards."));
         Line(L.S("3. 安装过程自动备份被修改的文件与配置，可随时「卸载」一键还原。",
                  "3. Modified files and configs are backed up automatically; Uninstall restores everything at any time."));
         Line(L.S("4. 安装完成后启动游戏，进入「图形」设置，把抗锯齿设为 DLSS 或 DLAA（必须）。",
@@ -73,8 +73,8 @@ public sealed class TutorialPage : UserControl
                  "7. If the OptiScaler menu offers \"Update v0.9.4\", do NOT accept (the mainline build lacks neural rendering and would overwrite the patch)."));
         Line(L.S("8. 微软商店 / Xbox 版：游戏装在 <盘>:\\XboxGames 下可自动检测；装在自定义位置时，",
                  "8. Microsoft Store / Xbox version: auto-detection works when the game is under <drive>:\\XboxGames; if installed elsewhere,"));
-        Line(L.S("   请在「设置 / 关于」页的「手动配置」中指定目录（选 Content 目录或其上层均可）。",
-                 "   set it under \"Manual setup\" on the Settings / About page (pick the Content folder or its parent — both work)."));
+        Line(L.S("   请在「设置 / 关于」页的「手动配置」中直接选择游戏主程序 exe（商店版 exe 在 Content 目录内）。",
+                 "   pick the game's executable directly under \"Manual setup\" on the Settings / About page (the Store exe lives inside the Content folder)."));
         Gap();
 
         Heading(L.S("三、微软模拟飞行 2020（Beta 实验性）", "3. Microsoft Flight Simulator 2020 (BETA, experimental)"));
@@ -87,10 +87,10 @@ public sealed class TutorialPage : UserControl
         Gap();
 
         Heading(L.S("四、X-Plane 12（DLSS5-Feeder · Vulkan 路线）", "4. X-Plane 12 (DLSS5-Feeder · Vulkan route)"));
-        Line(L.S("1. 在 XP12 卡片点击「选择组件包...」，选中包含以下文件的组件包目录：",
-                 "1. On the XP12 card click Select Kit... and choose the kit folder that contains:"));
-        Line(L.S("   dlss5-feed.addon64、deep-fried-chicken.addon64、nvngx_dlss*.dll、reshade-shaders 文件夹。",
-                 "   dlss5-feed.addon64, deep-fried-chicken.addon64, nvngx_dlss*.dll and the reshade-shaders folder."));
+        Line(L.S("1. 组件包无需手动准备：点击「一键安装」时自动从服务器下载（约 150MB，仅首次，之后离线可重装）。",
+                 "1. No manual kit needed: clicking Install auto-downloads it from our server (~150MB, first time only; offline reinstalls afterwards)."));
+        Line(L.S("   高级用户可在「设置 / 关于」页手动指定组件包目录（须含 dlss5-feed.addon64、deep-fried-chicken.addon64、nvngx_dlss*.dll、reshade-shaders）。",
+                 "   Advanced users can point at a kit folder in Settings · About (it must contain dlss5-feed.addon64, deep-fried-chicken.addon64, nvngx_dlss*.dll and reshade-shaders)."));
         Line(L.S("2. 点击「一键安装」。工具会注册 ReShade Vulkan 隐式层（机器级注册表）并安装组件。",
                  "2. Click Install. The tool registers the ReShade Vulkan implicit layer (machine-wide registry) and installs components."));
         Line(L.S("3. 安装后启动 X-Plane（若之前开着请完全退出后重开），按 Home 键打开 ReShade 菜单，在 DLSS5-Feeder 预设里确认：",

@@ -13,11 +13,13 @@ public sealed class AboutPage : UserControl
     private readonly ComboBox _cboLang = new();
     private readonly Label _lblMsfsDir = new();
     private readonly Label _lblMsfs2020Dir = new();
+    private readonly Label _lblXp12Dir = new();
     private readonly Label _lblKitDir = new();
     private bool _langReady;   // 防止初始 SelectedIndex 触发切换逻辑
 
     public event Action? MsfsBrowseRequested;
     public event Action? Msfs2020BrowseRequested;
+    public event Action? XpBrowseRequested;
     public event Action? XpPickKitRequested;
     public event Action? CheckUpdateRequested;
 
@@ -33,10 +35,10 @@ public sealed class AboutPage : UserControl
 
         BuildLanguageCard(52);
         BuildManualSetupCard(158);
-        BuildOptionsCard(340);
-        BuildDeclarationCard(446);
-        BuildQqCard(550);
-        BuildAboutCard(666);
+        BuildOptionsCard(358);
+        BuildDeclarationCard(462);
+        BuildQqCard(564);
+        BuildAboutCard(676);
     }
 
     private void BuildLanguageCard(int y)
@@ -82,7 +84,7 @@ public sealed class AboutPage : UserControl
 
     private void BuildManualSetupCard(int y)
     {
-        var card = Theme.MakeCard(832, 170);
+        var card = Theme.MakeCard(832, 190);
         card.Location = new Point(24, y);
 
         var head = Theme.MakeLabel(
@@ -91,14 +93,19 @@ public sealed class AboutPage : UserControl
         head.Location = new Point(16, 10);
         card.Controls.Add(head);
 
-        AddManualRow(card, L.S("MSFS 2024 游戏目录：", "MSFS 2024 game folder:"), _lblMsfsDir, 30, () => MsfsBrowseRequested?.Invoke());
-        AddManualRow(card, L.S("MSFS 2020 游戏目录（Beta）：", "MSFS 2020 game folder (Beta):"), _lblMsfs2020Dir, 68, () => Msfs2020BrowseRequested?.Invoke());
-        AddManualRow(card, L.S("XP12 组件包目录：", "XP12 kit folder:"), _lblKitDir, 106, () => XpPickKitRequested?.Invoke());
+        AddManualRow(card, L.S("MSFS 2024 游戏程序：", "MSFS 2024 executable:"), _lblMsfsDir, 30,
+            L.S("指定游戏程序...", "Pick executable..."), () => MsfsBrowseRequested?.Invoke());
+        AddManualRow(card, L.S("MSFS 2020 游戏程序（Beta）：", "MSFS 2020 executable (Beta):"), _lblMsfs2020Dir, 68,
+            L.S("指定游戏程序...", "Pick executable..."), () => Msfs2020BrowseRequested?.Invoke());
+        AddManualRow(card, L.S("XP12 游戏程序：", "XP12 executable:"), _lblXp12Dir, 106,
+            L.S("指定游戏程序...", "Pick executable..."), () => XpBrowseRequested?.Invoke());
+        AddManualRow(card, L.S("XP12 组件包（可选覆盖）:", "XP12 kit (optional override):"), _lblKitDir, 144,
+            L.S("手动指定目录...", "Browse..."), () => XpPickKitRequested?.Invoke());
 
         Controls.Add(card);
     }
 
-    private void AddManualRow(Panel card, string caption, Label valueLabel, int y, Action browse)
+    private void AddManualRow(Panel card, string caption, Label valueLabel, int y, string buttonText, Action browse)
     {
         var lbl = Theme.MakeLabel(caption, Theme.TextSecondary, 9f);
         lbl.Location = new Point(16, y + 6);
@@ -112,18 +119,19 @@ public sealed class AboutPage : UserControl
         valueLabel.AutoEllipsis = true;
         card.Controls.Add(valueLabel);
 
-        var btn = Theme.MakeButton(L.S("手动指定目录...", "Browse..."));
+        var btn = Theme.MakeButton(buttonText);
         btn.Size = new Size(170, 30);
         btn.Location = new Point(832 - 170 - 16, y);
         btn.Click += (_, _) => browse();
         card.Controls.Add(btn);
     }
 
-    /// <summary>刷新手动配置卡的目录显示（检测完成后由 MainForm 调用）。</summary>
-    public void SetManualPaths(string msfsDirDisplay, string msfs2020DirDisplay, string kitDirDisplay)
+    /// <summary>刷新手动配置卡的路径显示（检测完成后由 MainForm 调用）。</summary>
+    public void SetManualPaths(string msfsDirDisplay, string msfs2020DirDisplay, string xp12DirDisplay, string kitDirDisplay)
     {
         _lblMsfsDir.Text = msfsDirDisplay;
         _lblMsfs2020Dir.Text = msfs2020DirDisplay;
+        _lblXp12Dir.Text = xp12DirDisplay;
         _lblKitDir.Text = kitDirDisplay;
     }
 

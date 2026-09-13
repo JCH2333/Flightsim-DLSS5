@@ -45,14 +45,31 @@ public static class Updater
         }
     }
 
-    public sealed record UpdateInfo(string Tag, string ExeUrl, long Size, string? Sha256, string Body);
+    public sealed record UpdateInfo(string Tag, string FileName, string ServerFile, long Size, string? Sha256, string Body);
+
+    private static readonly Version CurrentVer = Version.Parse(CurrentVersion);
+
+    private static bool IsNewer(string versionText) =>
+        Version.TryParse(versionText.TrimStart('v', 'V').Split('-')[0], out var v) && v > CurrentVer;
 
     /// <summary>
-    /// 查询最新 Release 并与当前版本比较。直连失败自动走镜像，整轮失败后重试一轮；
-    /// 无更新、tag 无法解析、没有 EXE 附件时返回 null；全部网络源失败时抛出最后一个异常。
+    /// 查询最新版本：先取自有服务器的签名 manifest（快、无限流），无结果或不可达再回退 GitHub API（两轮重试）。
+    /// 服务器已确认无更新而 GitHub 不可达时返回 null（视为已是最新）。
     /// </summary>
     public static async Task<UpdateInfo?> CheckAsync(CancellationToken ct = default)
     {
+        // 1. 自有服务器（ECDSA 验签，HTTP 明文链路同样可信）
+        PackageCatalog.ServerAppManifest? server = null;
+        try { server = await PackageCatalog.TryFetchAppManifestAsync(ct: ct); }
+        catch { /* 服务器不可达，走 GitHub */ }
+        if (server != null && IsNewer(server.Version))
+            return new UpdateInfo("v" + server.Version.TrimStart('v', 'V'),
+                Path.GetFileName(server.ExeFile), server.ExeFile,
+                server.ExeSize,
+                string.IsNullOrEmpty(server.ExeSha256) ? null : server.ExeSha256,
+                server.Notes);
+
+        // 2. GitHub API 兜底
         Exception? last = null;
         for (var round = 0; round < 2; round++)
         {
@@ -68,6 +85,7 @@ public static class Updater
             if (round == 0)
                 await Task.Delay(3000, ct);
         }
+        if (server != null) return null;   // 服务器在线且已是最新，GitHub 故障不影响结论
         throw last ?? new InvalidOperationException(L.S("更新检查失败。", "Update check failed."));
     }
 
@@ -82,7 +100,7 @@ public static class Updater
         var tag = root.GetProperty("tag_name").GetString() ?? "";
         var body = root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
 
-        string? exeUrl = null;
+        string? exeName = null;
         long size = 0;
         string? sha = null;
         if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
@@ -91,7 +109,7 @@ public static class Updater
             {
                 var name = a.GetProperty("name").GetString() ?? "";
                 if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
-                exeUrl = a.GetProperty("browser_download_url").GetString();
+                exeName = name;
                 size = a.TryGetProperty("size", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetInt64() : 0;
                 // digest 形如 "sha256:abc..."（旧版 API 无此字段则退化为按大小校验）
                 sha = a.TryGetProperty("digest", out var d) ? d.GetString() : null;
@@ -100,17 +118,16 @@ public static class Updater
                 break;
             }
         }
-        if (string.IsNullOrEmpty(exeUrl)) return null;
+        if (string.IsNullOrEmpty(exeName)) return null;
 
         var verText = tag.TrimStart('v', 'V').Split('-')[0];
         if (!Version.TryParse(verText, out var latest)) return null;
-        var cur = Assembly.GetExecutingAssembly().GetName().Version!;
-        if (latest <= new Version(cur.Major, cur.Minor, cur.Build)) return null;
+        if (latest <= CurrentVer) return null;
 
-        return new UpdateInfo(tag, exeUrl, size, sha, body);
+        return new UpdateInfo(tag, exeName, "", size, sha, body);
     }
 
-    /// <summary>下载新版本 EXE（直连优先，失败自动切镜像），SHA256 / 大小校验通过后返回本地路径。</summary>
+    /// <summary>下载新版本 EXE（服务器优先 → GitHub → 镜像；带限速看门狗），SHA256 / 大小校验通过后返回本地路径。</summary>
     public static async Task<string> DownloadAsync(
         UpdateInfo info, IProgress<(long received, long total)>? progress, Action<string> log, CancellationToken ct = default)
     {
@@ -124,8 +141,9 @@ public static class Updater
         }
 
         var tmp = final + ".tmp";
-        var sources = new List<(string Label, string Url)> { ("direct", info.ExeUrl) };
-        sources.AddRange(MirrorPrefixes.Select(m => (m, m + info.ExeUrl)));
+        var sources = PackageCatalog.AppCandidateUrls(info.FileName, info.ServerFile)
+            .Select(u => (Label: u, Url: u))
+            .ToList();
 
         // 上次成功过的源优先（省掉对慢源的看门狗等待）
         try

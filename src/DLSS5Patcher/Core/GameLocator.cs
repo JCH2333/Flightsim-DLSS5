@@ -88,6 +88,16 @@ public static class GameLocator
         return null;
     }
 
+    /// <summary>校验手动选择的主程序文件：文件名须与目标 exe 一致，exe 所在目录即游戏目录（商店版 exe 本就在 Content 内）。</summary>
+    public static GameInstall? FromManualExe(string exePath, string exeName)
+    {
+        if (!File.Exists(exePath)) return null;
+        if (!string.Equals(Path.GetFileName(exePath), exeName, StringComparison.OrdinalIgnoreCase)) return null;
+        var full = Path.GetFullPath(exePath);
+        var dir = Path.GetDirectoryName(full)!;
+        return new GameInstall { GameDir = dir, ExePath = full, Source = L.S("手动指定", "Manual"), ExeName = exeName };
+    }
+
     private static bool EnvDebug => Environment.GetEnvironmentVariable("DLSS5_DEBUG") == "1";
 
     private static IEnumerable<string> SteamAppsCandidates()

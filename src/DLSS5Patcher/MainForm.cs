@@ -139,6 +139,7 @@ public sealed class MainForm : Form
         _home.XpUninstallRequested += () => _ = UninstallXp12Async();
         _about.MsfsBrowseRequested += () => BrowseForGame(0);
         _about.Msfs2020BrowseRequested += () => BrowseForGame(1);
+        _about.XpBrowseRequested += () => BrowseForGame(2);
         _about.XpPickKitRequested += PickKitDir;
         _about.CheckUpdateRequested += () => _ = RunUpdateCheckAsync(startup: false);
     }
@@ -187,15 +188,21 @@ public sealed class MainForm : Form
 
     // ───────────────────────────── 检测 ─────────────────────────────
 
-    /// <summary>手动目录有效则用手动目录，否则自动检测。</summary>
-    private static GameInstall? FindGame(string manualDir, int targetIdx)
+    /// <summary>手动指定的 exe / 目录有效则用之，否则自动检测（目录为旧版配置的兼容入口）。</summary>
+    private static GameInstall? FindGame(string manualDir, string manualExe, int targetIdx)
     {
-        if (manualDir.Length > 0)
+        var exeName = GameLocator.Targets[targetIdx].ExeName;
+        if (manualExe.Length > 0)
         {
-            var g = GameLocator.FromManualDir(manualDir, GameLocator.Targets[targetIdx].ExeName);
+            var g = GameLocator.FromManualExe(manualExe, exeName);
             if (g != null) return g;
         }
-        return GameLocator.Find(GameLocator.Targets[targetIdx].AppId, GameLocator.Targets[targetIdx].ExeName);
+        if (manualDir.Length > 0)
+        {
+            var g = GameLocator.FromManualDir(manualDir, exeName);
+            if (g != null) return g;
+        }
+        return GameLocator.Find(GameLocator.Targets[targetIdx].AppId, exeName);
     }
 
     private async Task RefreshAsync()
@@ -206,10 +213,10 @@ public sealed class MainForm : Form
             await Task.Run(() =>
             {
                 _gpu = GpuInfo.Detect();
-                // 手动指定的目录优先（存于 AppConfig，刷新不丢）；否则自动检测
-                _game2024 = FindGame(AppConfig.ManualMsfs2024Dir, 0);
-                _game2020 = FindGame(AppConfig.ManualMsfs2020Dir, 1);
-                _gameXp12 = GameLocator.Find(GameLocator.Targets[2].AppId, GameLocator.Targets[2].ExeName);
+                // 手动指定的 exe / 目录优先（存于 AppConfig，刷新不丢）；否则自动检测
+                _game2024 = FindGame(AppConfig.ManualMsfs2024Dir, AppConfig.ManualExe24, 0);
+                _game2020 = FindGame(AppConfig.ManualMsfs2020Dir, AppConfig.ManualExe20, 1);
+                _gameXp12 = FindGame("", AppConfig.ManualXp12Exe, 2);
             });
 
             _home.SetGpu(
@@ -254,9 +261,10 @@ public sealed class MainForm : Form
             if (_gpu.SupportedThisVersion) _about.SetRecommendedScale(_gpu.RecommendedWorkingScale);
 
             _about.SetManualPaths(
-                _game2024 != null ? $"{_game2024.GameDir}   [{_game2024.Source}]" : L.S("未检测到（可点击右侧按钮手动指定）", "Not detected (use the button on the right to browse)"),
-                _game2020 != null ? $"{_game2020.GameDir}   [{_game2020.Source}]" : L.S("未检测到（可点击右侧按钮手动指定）", "Not detected (use the button on the right to browse)"),
-                Directory.Exists(AppConfig.KitDir) ? AppConfig.KitDir : L.S("未选择（XP12 安装前需先指定）", "Not selected (required before installing to XP12)"));
+                _game2024 != null ? $"{_game2024.GameDir}   [{_game2024.Source}]" : L.S("未检测到（可点击右侧按钮指定游戏主程序）", "Not detected (use the button on the right to pick the game executable)"),
+                _game2020 != null ? $"{_game2020.GameDir}   [{_game2020.Source}]" : L.S("未检测到（可点击右侧按钮指定游戏主程序）", "Not detected (use the button on the right to pick the game executable)"),
+                _gameXp12 != null ? $"{_gameXp12.GameDir}   [{_gameXp12.Source}]" : L.S("未检测到（可点击右侧按钮指定 X-Plane.exe）", "Not detected (use the button on the right to pick X-Plane.exe)"),
+                KitStatusText());
         }
         catch (Exception ex)
         {
@@ -316,50 +324,68 @@ public sealed class MainForm : Form
             $"{_game2020.GameDir}   [{_game2020.Source}]", canInstall, canUninstall);
     }
 
+    /// <summary>XP12 组件包状态文案（手动覆盖目录优先显示，否则显示缓存状态）。</summary>
+    private static string KitStatusText()
+    {
+        if (Directory.Exists(AppConfig.KitDir))
+            return AppConfig.KitDir + L.S("   [手动覆盖]", "   [manual override]");
+        return PackageDownloader.IsCachedValid(PackageCatalog.Xp12Kit)
+            ? L.S("已缓存（可离线重装）", "cached (offline reinstall available)")
+            : L.S("安装时自动下载（约 150MB）", "auto-downloaded on install (~150MB)");
+    }
+
     private void UpdateXp12Card()
     {
         if (_gameXp12 == null)
         {
-            _home.SetCard(HomePage.CardXp12, L.S("未检测到安装", "Not detected"), "",
+            _home.SetCard(HomePage.CardXp12, L.S("未检测到安装", "Not detected"),
+                L.S("未检测到安装。可在设置页「手动配置」中指定 X-Plane.exe 主程序。",
+                    "No installation detected. Pick X-Plane.exe under \"Manual setup\" in Settings."),
                 canInstall: false, canUninstall: false);
             return;
         }
 
         var state = XP12Installer.DetectState(_gameXp12.GameDir);
         var locked = XP12Installer.CoreFileLocked(_gameXp12.GameDir);
-        var kit = Directory.Exists(AppConfig.KitDir) ? AppConfig.KitDir : L.S("未选择", "not selected");
-        var canInstall = !locked && Directory.Exists(AppConfig.KitDir);
+        var canInstall = !locked;
         var canUninstall = !locked &&
             (File.Exists(Path.Combine(_gameXp12.GameDir, "dlss5-feed.addon64")) || XP12Installer.LoadManifest() != null);
         _home.SetCard(HomePage.CardXp12, state,
-            $"{_gameXp12.GameDir}   [{_gameXp12.Source}]   |   " + L.S($"组件包: {kit}", $"Kit: {kit}"),
+            $"{_gameXp12.GameDir}   [{_gameXp12.Source}]   |   " + L.S($"组件包: {KitStatusText()}", $"Kit: {KitStatusText()}"),
             canInstall, canUninstall);
     }
 
-    /// <summary>手动指定游戏目录（idx: 0=MSFS 2024, 1=MSFS 2020）。持久化到 AppConfig，刷新不丢。</summary>
+    /// <summary>手动指定游戏主程序（idx: 0=MSFS 2024, 1=MSFS 2020, 2=XP12）。直接选 exe：exe 所在目录即游戏目录，商店版同样适用。持久化到 AppConfig。</summary>
     private void BrowseForGame(int targetIdx)
     {
-        var exeName = GameLocator.Targets[targetIdx].ExeName;
-        var cnName = L.S(GameLocator.Targets[targetIdx].CnName, GameLocator.Targets[targetIdx].EnName);
-        using var dlg = new FolderBrowserDialog
+        var t = GameLocator.Targets[targetIdx];
+        var cnName = L.S(t.CnName, t.EnName);
+        var cur = targetIdx switch { 0 => _game2024, 1 => _game2020, _ => _gameXp12 };
+        using var dlg = new OpenFileDialog
         {
-            Description = L.S($"选择包含 {exeName} 的文件夹（微软商店版可直接选 Content 目录或其上层）",
-                              $"Pick the folder containing {exeName} (for the Microsoft Store version, the Content folder or its parent both work)")
+            Title = L.S($"选择 {cnName} 主程序（{t.ExeName}）", $"Select the {cnName} executable ({t.ExeName})"),
+            Filter = $"{t.ExeName}|{t.ExeName}|{L.S("所有程序 (*.exe)|*.exe", "All executables (*.exe)|*.exe")}",
+            CheckFileExists = true,
         };
+        if (cur != null && Directory.Exists(cur.GameDir)) dlg.InitialDirectory = cur.GameDir;
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        var g = GameLocator.FromManualDir(dlg.SelectedPath, exeName);
+        var g = GameLocator.FromManualExe(dlg.FileName, t.ExeName);
         if (g == null)
         {
             MessageBox.Show(this,
-                L.S($"所选目录中未找到 {exeName}（微软商店版请选择 Content 目录或其上层）",
-                    $"{exeName} was not found in the selected folder (for the Store version, pick the Content folder or its parent)"),
-                L.S("无效目录", "Invalid folder"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                L.S($"请选择 {cnName} 的主程序 {t.ExeName}（微软商店版在 ...\\XboxGames\\...\\Content 目录内）。",
+                    $"Please select {cnName}'s main executable {t.ExeName} (inside ...\\XboxGames\\...\\Content for the Store version)."),
+                L.S("无效的程序文件", "Invalid executable"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        if (targetIdx == 0) AppConfig.ManualMsfs2024Dir = g.GameDir;
-        else AppConfig.ManualMsfs2020Dir = g.GameDir;
+        switch (targetIdx)
+        {
+            case 0: AppConfig.ManualExe24 = g.ExePath; break;
+            case 1: AppConfig.ManualExe20 = g.ExePath; break;
+            default: AppConfig.ManualXp12Exe = g.ExePath; break;
+        }
         AppConfig.Save();
-        Log(L.S($"已手动指定 {cnName} 目录：{g.GameDir}", $"Manually set the {cnName} folder: {g.GameDir}"));
+        Log(L.S($"已手动指定 {cnName} 主程序：{g.ExePath}", $"Manually set the {cnName} executable: {g.ExePath}"));
         _ = RefreshAsync();
     }
 
@@ -367,8 +393,8 @@ public sealed class MainForm : Form
     {
         using var dlg = new FolderBrowserDialog
         {
-            Description = L.S("选择 DLSS5-Feeder 组件包目录（含 dlss5-feed.addon64、deep-fried-chicken.addon64、nvngx_dlss*.dll、reshade-shaders）",
-                              "Pick the DLSS5-Feeder kit folder (must contain dlss5-feed.addon64, deep-fried-chicken.addon64, nvngx_dlss*.dll and reshade-shaders)"),
+            Description = L.S("可选覆盖：指定 DLSS5-Feeder 组件包目录（留空/取消则自动下载官方组件包）。\n目录须含 dlss5-feed.addon64、deep-fried-chicken.addon64、nvngx_dlss*.dll、reshade-shaders。",
+                              "Optional override: pick a DLSS5-Feeder kit folder (cancel to auto-download the official kit).\nThe folder must contain dlss5-feed.addon64, deep-fried-chicken.addon64, nvngx_dlss*.dll and reshade-shaders."),
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         var missing = XP12Installer.RequiredKitFiles
@@ -406,13 +432,15 @@ public sealed class MainForm : Form
             : "";
         var confirm = MessageBox.Show(this,
             L.S($"即将为 {name} 安装 DLSS5 神经渲染（DLSS Unlocked / OptiScaler 路线）。\n\n" +
-                "• 组件包已内置于程序（约 440MB），安装全程无需联网\n" +
+                "• 首次安装需联网下载组件包（约 440MB，自有服务器 + GitHub 多源自动切换）\n" +
+                "• 下载后本地缓存，之后可离线重装；SHA256 校验保证安全\n" +
                 "• 自动备份被修改的文件与配置，可一键回滚\n" +
                 "• 安装后：游戏内按 Insert 键打开 OptiScaler 菜单\n" +
                 betaNote + "\n" +
                 "是否继续？",
                 $"About to install DLSS5 neural rendering for {name} (DLSS Unlocked / OptiScaler route).\n\n" +
-                "• The component package is embedded in the program (~440MB) — no internet needed\n" +
+                "• First install downloads the package over the internet (~440MB, own server + GitHub fallback)\n" +
+                "• The package is cached locally afterwards — offline reinstalls work; SHA256-verified\n" +
                 "• Automatically backs up modified files and configs — one-click rollback\n" +
                 "• After install: press Insert in game to open the OptiScaler menu\n" +
                 betaNote + "\n" +
@@ -494,22 +522,16 @@ public sealed class MainForm : Form
     private async Task InstallXp12Async()
     {
         if (_gameXp12 == null) return;
-        if (!Directory.Exists(AppConfig.KitDir))
-        {
-            MessageBox.Show(this,
-                L.S("请先在 XP12 卡片点击「选择组件包...」指定组件包目录。",
-                    "Click \"Select Kit...\" on the XP12 card to choose the kit folder first."),
-                L.S("缺少组件包", "Kit required"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
 
         var confirm = MessageBox.Show(this,
             L.S("即将为 X-Plane 12 安装 DLSS5（DLSS5-Feeder 路线：合成 DLSS 契约 + 运动矢量估算 + 神经渲染）。\n\n" +
+                "• 组件包无需手动准备：首次安装自动从服务器下载（约 150MB，SHA256 校验），之后离线可重装\n" +
                 "• 注册 ReShade Vulkan 隐式层（机器级）并安装 Feeder/消费者组件\n" +
                 "• 运动矢量为着色器估算，快速移动视角会有重影（方案固有特性）\n" +
                 "• 安装后：完全重启 X-Plane，DRME 与 DLSS 5 Feed 已由安装器自动启用\n\n" +
                 "是否继续？",
                 "About to install DLSS5 for X-Plane 12 (DLSS5-Feeder route: synthesized DLSS contract + estimated motion vectors + neural rendering).\n\n" +
+                "• No manual kit needed: the first install auto-downloads it (~150MB, SHA256-verified); offline reinstalls afterwards\n" +
                 "• Registers the ReShade Vulkan implicit layer (machine-wide) and installs Feeder/consumer components\n" +
                 "• Motion vectors are shader-estimated; fast camera moves show ghosting (inherent to the approach)\n" +
                 "• After install: fully restart X-Plane — DRME and DLSS 5 Feed are enabled by the installer automatically\n\n" +

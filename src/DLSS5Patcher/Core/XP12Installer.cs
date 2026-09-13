@@ -7,16 +7,12 @@ namespace DLSS5Patcher.Core;
 
 /// <summary>
 /// X-Plane 12（Vulkan，无原生 DLSS）的 DLSS5-Feeder 路线安装/卸载。
-/// 组件来源：教程组件包（dlss5-feed.addon64、Deep Fried Chicken、NVIDIA runtime、着色器）
-/// + ReShade 6.8 Addon 安装器（提取 Vulkan 隐式层）。
+/// 组件来源：XP12 组件包（dlss5-feeder-kit zip，v1.1.0 起自动从分发服务器下载，也支持手动目录覆盖）
+/// 内含 Feeder/DFC 插件、NVIDIA runtime、着色器、ReShade Vulkan 层与框架头文件。
 /// </summary>
 public static class XP12Installer
 {
-    public const string ReShadeSetupSha256 = "afe4c8f13048306307983b8b3d41d5bf00a86820440b0e57dea10950e1176445";
-    public const string ReShadeSetupName = "ReShade_Setup_6.8.0_Addon.exe";
-    public const string ReShadeVersion = "6.8.0.2155";
-
-    /// <summary>kit 目录中必须存在的文件（教程组件包）。</summary>
+    /// <summary>组件包目录中必须存在的文件（自动下载的完整组件包一定齐全；手动目录缺项会给出明确报错）。</summary>
     public static readonly string[] RequiredKitFiles =
     {
         "dlss5-feed.addon64",
@@ -32,7 +28,7 @@ public static class XP12Installer
         @"reshade-shaders\Shaders\MotionVectors.fxh",
     };
 
-    /// <summary>ReShade 官方框架头文件（DLSS5_Feed.fx 编译必需，kit 不自带；内容已内嵌于 EXE）。</summary>
+    /// <summary>ReShade 官方框架头文件（DLSS5_Feed.fx 编译必需；完整组件包自带）。</summary>
     private static readonly string[] FrameworkHeaders =
     {
         "ReShade.fxh",
@@ -109,8 +105,8 @@ public static class XP12Installer
         return false;
     }
 
-    /// <summary>从内置资源部署 ReShade Vulkan 层文件（无需网络、无需解压安装器）。</summary>
-    private static (string dll, string json) EnsureReShadeLayerFiles(Action<string> log)
+    /// <summary>从组件包部署 ReShade Vulkan 层文件到 ProgramData\ReShade（已有同版本层则复用）。</summary>
+    private static (string dll, string json) EnsureReShadeLayerFiles(string kitDir, Action<string> log)
     {
         var pd = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "ReShade");
         Directory.CreateDirectory(pd);
@@ -124,8 +120,19 @@ public static class XP12Installer
             return (dll, json);
         }
 
-        PackageStore.WriteReShadeLayerFiles(pd, log);
-        log(L.S("ReShade Vulkan 层文件已部署。", "ReShade Vulkan layer files deployed."));
+        var srcDll = Path.Combine(kitDir, "ReShade64.dll");
+        if (!File.Exists(srcDll))
+            throw new InvalidOperationException(L.S(
+                "组件包缺少 ReShade64.dll（Vulkan 层）。请清空设置页的组件包目录覆盖，使用自动下载的完整组件包。",
+                "The kit is missing ReShade64.dll (Vulkan layer). Clear the kit-folder override in Settings to use the auto-downloaded full kit."));
+        var actual = PackageStore.Sha256File(srcDll);
+        if (!actual.Equals(PackageStore.ReShadeLayerDllSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(L.S(
+                "组件包内 ReShade64.dll 校验失败（SHA256 不匹配），请重新获取完整组件包。",
+                "ReShade64.dll inside the kit failed verification (SHA256 mismatch) — please obtain the full kit again."));
+        File.Copy(srcDll, dll, overwrite: true);
+        File.Copy(Path.Combine(kitDir, "ReShade64.json"), json, overwrite: true);
+        log(L.S("ReShade Vulkan 层文件已从组件包部署。", "ReShade Vulkan layer files deployed from the kit."));
         return (dll, json);
     }
 
@@ -217,37 +224,65 @@ public static class XP12Installer
     {
         public required string GameDir { get; init; }
         public required string ExePath { get; init; }
-        public required string KitDir { get; init; }
+        /// <summary>组件包目录覆盖（空 = 自动下载/复用缓存的组件包）。</summary>
+        public string KitDir { get; init; } = "";
         public required Action<string> Log { get; init; }
     }
 
     public static async Task<InstallManifest> InstallAsync(InstallOptions o, CancellationToken ct = default)
-        => await Task.Run(() => InstallCore(o), ct);
+        => await Task.Run(async () => await InstallCore(o, ct), ct);
 
-    private static InstallManifest InstallCore(InstallOptions o)
+    /// <summary>自动下载模式下的组件包解压目录。</summary>
+    private static string KitExtractDir => Path.Combine(PackageDownloader.CacheDir, "kit", PackageCatalog.Xp12Kit.Id);
+
+    /// <summary>确保组件包可用：优先手动覆盖目录，否则下载（缓存命中则跳过）并解压。返回组件包目录。</summary>
+    private static async Task<string> EnsureKitAsync(string overrideDir, Action<string> log, CancellationToken ct)
+    {
+        if (overrideDir.Length > 0 && Directory.Exists(overrideDir))
+        {
+            log(L.S($"使用手动指定的组件包目录：{overrideDir}", $"Using the manual kit folder: {overrideDir}"));
+            return overrideDir;
+        }
+
+        var zipPath = await PackageDownloader.EnsureAsync(PackageCatalog.Xp12Kit, log, null, ct);
+        var dir = KitExtractDir;
+        if (Directory.Exists(dir) && RequiredKitFiles.All(f => File.Exists(Path.Combine(dir, f))))
+        {
+            log(L.S("组件包已解压且完整，直接使用。", "Extracted kit already present and complete — reusing it."));
+            return dir;
+        }
+        if (Directory.Exists(dir)) Directory.Delete(dir, true);
+        Directory.CreateDirectory(dir);
+        log(L.S("正在解压组件包…", "Extracting the kit..."));
+        ZipFile.ExtractToDirectory(zipPath, dir, overwriteFiles: true);
+        return dir;
+    }
+
+    private static async Task<InstallManifest> InstallCore(InstallOptions o, CancellationToken ct)
     {
         o.Log(L.S($"目标游戏目录：{o.GameDir}", $"Target game folder: {o.GameDir}"));
 
-        // 0. 校验 kit 完整性
+        // 0. 组件包就绪（手动覆盖目录 / 自动下载解压），并校验完整性
+        var kitDir = await EnsureKitAsync(o.KitDir, o.Log, ct);
         var missing = RequiredKitFiles
-            .Where(f => !File.Exists(Path.Combine(o.KitDir, f))).ToList();
+            .Where(f => !File.Exists(Path.Combine(kitDir, f))).ToList();
         if (missing.Count > 0)
-            throw new InvalidOperationException("组件包缺少文件：" + string.Join(", ", missing));
+            throw new InvalidOperationException(L.S("组件包缺少文件：", "The kit is missing files: ") + string.Join(", ", missing));
 
         // 1. ReShade Vulkan 层（ProgramData + 注册表 + 白名单）
-        var (dll, json) = EnsureReShadeLayerFiles(o.Log);
+        var (dll, json) = EnsureReShadeLayerFiles(kitDir, o.Log);
         PatchLayerJsonApiVersion(json);
         RegisterLayer();
         EnsureAppWhitelisted(o.ExePath, o.Log);
 
-        // 2. 复制 kit 文件
+        // 2. 复制组件包文件
         var files = new List<string>();
         foreach (var f in CopyToRoot)
         {
-            File.Copy(Path.Combine(o.KitDir, f), Path.Combine(o.GameDir, f), overwrite: true);
+            File.Copy(Path.Combine(kitDir, f), Path.Combine(o.GameDir, f), overwrite: true);
             files.Add(f);
         }
-        var shaderDirSrc = Path.Combine(o.KitDir, "reshade-shaders", "Shaders");
+        var shaderDirSrc = Path.Combine(kitDir, "reshade-shaders", "Shaders");
         var shaderDirDst = Path.Combine(o.GameDir, "reshade-shaders", "Shaders");
         Directory.CreateDirectory(shaderDirDst);
         foreach (var f in Directory.EnumerateFiles(shaderDirSrc))
@@ -259,20 +294,17 @@ public static class XP12Installer
         Directory.CreateDirectory(Path.Combine(o.GameDir, "reshade-shaders", "Textures"));
         o.Log(L.S($"已写入 {files.Count} 个文件（不含 DX11 桥 —— Vulkan 无需）。", $"Wrote {files.Count} files (no DX11 bridge — not needed on Vulkan)."));
 
-        // 2.5 ReShade 官方框架头文件（kit 不自带；缺失会导致 DLSS5_Feed.fx 编译失败）
+        // 2.5 ReShade 官方框架头文件（DLSS5_Feed.fx 编译必需；完整组件包自带）
         foreach (var name in FrameworkHeaders)
         {
             var dst = Path.Combine(shaderDirDst, name);
             if (File.Exists(dst)) { files.Add(@"reshade-shaders\Shaders\" + name); continue; }
-            var kitCopy = Path.Combine(o.KitDir, "reshade-shaders", "Shaders", name);
-            if (File.Exists(kitCopy))
-            {
-                File.Copy(kitCopy, dst, overwrite: true);
-            }
-            else
-            {
-                File.WriteAllText(dst, PackageStore.ReadFxh(name));
-            }
+            var kitCopy = Path.Combine(kitDir, "reshade-shaders", "Shaders", name);
+            if (!File.Exists(kitCopy))
+                throw new InvalidOperationException(L.S(
+                    $"组件包缺少框架头文件 {name}（组件包不完整）。请清空设置页的组件包目录覆盖，使用自动下载的完整组件包。",
+                    $"The kit is missing framework header {name} (incomplete kit). Clear the kit-folder override in Settings to use the auto-downloaded full kit."));
+            File.Copy(kitCopy, dst, overwrite: true);
             files.Add(@"reshade-shaders\Shaders\" + name);
             o.Log(L.S($"已补齐框架头文件 {name}。", $"Added missing framework header {name}."));
         }
@@ -301,7 +333,7 @@ public static class XP12Installer
         {
             Tag = "DLSS5-Feeder 0.13.1-beta.1 + DFC 1.4.8",
             InstalledAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-            PackageSha256 = "kit:" + PackageStore.Sha256File(Path.Combine(o.KitDir, "dlss5-feed.addon64"))[..16],
+            PackageSha256 = "kit:" + PackageStore.Sha256File(Path.Combine(kitDir, "dlss5-feed.addon64"))[..16],
             GameDir = o.GameDir,
             Files = files,
             Dirs = dirs,

@@ -78,11 +78,8 @@ internal static class Cli
                     Log(L.S("游戏文件被占用（游戏未完全关闭？），请关闭后重试。", "Game files are locked (game not fully closed?). Close it and retry."));
                     return 1;
                 }
-                // kit 目录：参数或默认教程包位置
-                var kit = args.Length > 2 && args[1] == "--kit" ? args[2]
-                    : args.Length > 1 ? args[1]
-                    : @"F:\我的世界动画\AI项目\DLSS5\网络资源\DLSS5";
-                if (!Directory.Exists(kit)) { Log(L.S($"组件包目录不存在: {kit}", $"Kit folder does not exist: {kit}")); return 1; }
+                // 组件包目录：--kit 可选覆盖；缺省自动下载（缓存命中则直接用）
+                var kit = args.Length > 2 && args[1] == "--kit" ? args[2] : "";
                 var m = XP12Installer.InstallAsync(new XP12Installer.InstallOptions
                 {
                     GameDir = game.GameDir,

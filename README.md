@@ -18,7 +18,7 @@
 
 - 🎮 **三张游戏卡片**：MSFS 2024 / MSFS 2020（Beta 实验版）/ X-Plane 12，每张卡片只保留「一键安装」「一键卸载」，极简操作
 - 🌐 **中英双语**：首次启动选择语言，设置页可随时切换
-- 📦 **完全离线**：全部安装组件（约 440MB）内嵌于单个 EXE，下载一次即可永久离线安装、无需任何网络配置
+- 📦 **极致轻量 + 服务器分发**：本体仅约 70MB（零内嵌包体）；安装时自动从自有服务器下载组件包（服务器 → GitHub → 镜像多源容灾、断点续传、SHA256 校验），下载后本地缓存、可离线重装
 - 🔄 **自动更新**：启动时自动检查 GitHub Release，发现新版本强制更新（检查与下载均带镜像兜底 + 限速看门狗，下载全程 SHA256 校验，完成后自动替换重启）
 - 🖥️ **深色卡片式 UI**，原生 WinForms 单 EXE（约 510 MB，自包含），4K / 高 DPI 缩放已适配
 - 🔒 **安全可回滚**：安装自动备份被修改的文件与配置，卸载一键还原；卸载不影响存档与插件
@@ -99,9 +99,9 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 要求：.NET 8 SDK（`net8.0-windows` + WinForms），仅支持 Windows 10/11。
 
-> 注意：安装组件（`src/DLSS5Patcher/assets/`，约 440MB）因体积原因不入库。自行构建时需在该目录放入：
-> `dlss-unlocked-standalone-DLSSNR-v0.7.6.zip`（SHA256 `ca824acb…`）、`ReShade64.dll` / `ReShade64.json`（取自 ReShade 6.8.0 Addon 安装器）、
-> `ReShade.fxh` / `ReShadeUI.fxh` / `DrawText.fxh`。普通用户建议直接从 [Releases](../../releases) 下载现成 EXE。
+> 注意：v1.1.0 起 EXE 不再内嵌任何组件包，安装时从分发服务器（主源）与 GitHub Release（备用）自动下载。
+> 组件包与服务器部署见 `server/DEPLOY.md`；XP12 组件包可用 `tools/make_kit_zip.py` 从本地素材打包（SHA256 需同步写入 `Core/PackageCatalog.cs`）。
+> 环境变量 `DLSS5_REPO` 或 config `repo=` 可覆盖主源地址（测试/应急）。普通用户建议直接从 [Releases](../../releases) 下载现成 EXE。
 
 代码结构：`MainForm.cs`（外壳 + 业务逻辑）、`Ui/Theme.cs`（设计令牌与控件工厂）、`Ui/HomePage.cs`（三卡片 + 日志）、`Ui/TutorialPage.cs`、`Ui/AboutPage.cs`、`Ui/LanguageDialog.cs`（首启语言选择）、`Core/`（安装器、游戏定位、双语助手与配置）。
 

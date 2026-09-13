@@ -14,6 +14,14 @@ public static class AppConfig
     public static string ManualMsfs2024Dir { get; set; } = "";
     public static string ManualMsfs2020Dir { get; set; } = "";
 
+    /// <summary>手动指定的游戏主程序 exe 路径（优先于目录与自动检测；空 = 未指定）。</summary>
+    public static string ManualExe24 { get; set; } = "";
+    public static string ManualExe20 { get; set; } = "";
+    public static string ManualXp12Exe { get; set; } = "";
+
+    /// <summary>分发服务器基地址覆盖（repo= 键；空 = 内置源。测试/应急用）。</summary>
+    public static string RepoOverride { get; set; } = "";
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DLSS5Patcher", "config.txt");
 
@@ -41,6 +49,10 @@ public static class AppConfig
                 else if (key == "kit") KitDir = val;
                 else if (key == "dir24") ManualMsfs2024Dir = val;
                 else if (key == "dir20") ManualMsfs2020Dir = val;
+                else if (key == "exe24") ManualExe24 = val;
+                else if (key == "exe20") ManualExe20 = val;
+                else if (key == "exe12") ManualXp12Exe = val;
+                else if (key == "repo") RepoOverride = val;
             }
         }
         catch { }
@@ -54,6 +66,7 @@ public static class AppConfig
             File.WriteAllLines(FilePath, new[]
             {
                 $"lang={Lang}", $"kit={KitDir}", $"dir24={ManualMsfs2024Dir}", $"dir20={ManualMsfs2020Dir}",
+                $"exe24={ManualExe24}", $"exe20={ManualExe20}", $"exe12={ManualXp12Exe}", $"repo={RepoOverride}",
             });
         }
         catch { }

@@ -1,20 +1,17 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 
 namespace DLSS5Patcher.Core;
 
 /// <summary>
-/// 内置组件包访问：所有安装素材作为嵌入资源打进 EXE（assets\*），安装全程无需联网。
+/// 组件包访问（v1.1.0 起包体不再内嵌 EXE，全部从分发服务器下载后缓存本地）。
+/// 本类只负责：文件 SHA256 校验 + 打开已校验的包文件。
 /// </summary>
 public static class PackageStore
 {
-    // ── MSFS 组件包（DLSS Unlocked / OptiScaler） ──
+    // ── MSFS 组件包标识（写入安装清单，用于状态展示与升级判定） ──
     public const string MsfsPackageTag = "DLSSNR-v0.7.6";
-    public const string MsfsPackageName = "dlss-unlocked-standalone-DLSSNR-v0.7.6.zip";
-    public const string MsfsPackageSha256 = "ca824acb693e39975b152c7a6aa21af64799dc1d05ec0462451491ccda8e6ec2";
-    public const long MsfsPackageSize = 461_963_289;
 
-    // ── ReShade 6.8.0 Vulkan 隐式层文件（从官方安装器提取后内嵌） ──
-    public const string ReShadeVersion = "6.8.0.2155";
+    // ── ReShade 6.8.0 Vulkan 隐式层 DLL（随 XP12 组件包分发） ──
     public const string ReShadeLayerDllSha256 = "0cee63f9c9f13f3ac909c5b4903f4dbb4b719a7ab3b4f13b0deaf83c814b94f7";
 
     public static string Sha256File(string path)
@@ -24,59 +21,26 @@ public static class PackageStore
         return Convert.ToHexString(h.ComputeHash(fs)).ToLowerInvariant();
     }
 
-    private static System.IO.Stream OpenEmbedded(string name)
+    /// <summary>打开已下载的 MSFS 组件包 zip（先做 SHA256 完整性校验；调用方先用 PackageDownloader.EnsureAsync 确保存在）。</summary>
+    public static Stream OpenMsfsPackage(Action<string> log)
     {
-        var stream = typeof(PackageStore).Assembly.GetManifestResourceStream("DLSS5Patcher.assets." + name);
-        if (stream == null)
-            throw new InvalidOperationException(
-                L.S($"内置资源 {name} 缺失，请使用完整发行的 EXE。",
-                    $"Embedded resource {name} is missing — please use the officially released EXE."));
-        return stream;
+        var path = PackageDownloader.CachedPath(PackageCatalog.MsfsPackage);
+        return OpenVerified(path, PackageCatalog.MsfsPackage.Sha256,
+            L.S("校验组件包（约 1-2 秒）...", "Verifying the package (takes a second)..."),
+            L.S("组件包校验通过。", "Package verified."),
+            L.S("组件包校验失败（SHA256 不匹配），缓存可能已损坏，请重试安装（会自动重新下载）。",
+                "Package verification failed (SHA256 mismatch) — the cache may be corrupted, retry the install (it re-downloads automatically)."),
+            log);
     }
 
-    /// <summary>打开内置 MSFS 组件包（先做 SHA256 完整性校验，再定位回起点）。</summary>
-    public static System.IO.Stream OpenMsfsPackage(Action<string> log)
+    /// <summary>打开本地文件并校验 SHA256，通过后返回只读流。</summary>
+    public static Stream OpenVerified(string path, string sha256, string verifyMsg, string okMsg, string failMsg, Action<string> log)
     {
-        log(L.S("校验内置组件包（约 1-2 秒）...", "Verifying the embedded package (takes a second)..."));
-        var stream = OpenEmbedded(MsfsPackageName);
-        using var h = SHA256.Create();
-        var hash = Convert.ToHexString(h.ComputeHash(stream)).ToLowerInvariant();
-        if (hash != MsfsPackageSha256)
-            throw new InvalidOperationException(
-                L.S("内置组件包校验失败（SHA256 不匹配），EXE 可能已损坏，请重新下载。",
-                    "Embedded package verification failed (SHA256 mismatch) — the EXE may be corrupted, please re-download."));
-        stream.Seek(0, System.IO.SeekOrigin.Begin);
-        log(L.S("内置组件包校验通过。", "Embedded package verified."));
-        return stream;
-    }
-
-    /// <summary>从内置资源部署 ReShade Vulkan 层文件（ReShade64.dll / ReShade64.json）到目标目录。</summary>
-    public static void WriteReShadeLayerFiles(string targetDir, Action<string> log)
-    {
-        DeployEmbedded("ReShade64.dll", System.IO.Path.Combine(targetDir, "ReShade64.dll"), ReShadeLayerDllSha256, log);
-        DeployEmbedded("ReShade64.json", System.IO.Path.Combine(targetDir, "ReShade64.json"), null, log);
-    }
-
-    private static void DeployEmbedded(string name, string dest, string? sha256, Action<string> log)
-    {
-        using var stream = OpenEmbedded(name);
-        using var h = SHA256.Create();
-        var hash = Convert.ToHexString(h.ComputeHash(stream)).ToLowerInvariant();
-        if (sha256 != null && hash != sha256)
-            throw new InvalidOperationException(
-                L.S($"内置资源 {name} 校验失败，EXE 可能已损坏，请重新下载。",
-                    $"Embedded resource {name} failed verification — the EXE may be corrupted, please re-download."));
-        stream.Seek(0, System.IO.SeekOrigin.Begin);
-        using var outFs = System.IO.File.Create(dest);
-        stream.CopyTo(outFs);
-        log(L.S($"已部署 {System.IO.Path.GetFileName(dest)}（{stream.Length / 1024} KB）。", $"Deployed {System.IO.Path.GetFileName(dest)} ({stream.Length / 1024} KB)."));
-    }
-
-    /// <summary>读取内置的 ReShade 官方框架头文件（文本）。</summary>
-    public static string ReadFxh(string name)
-    {
-        using var stream = OpenEmbedded(name);
-        using var reader = new System.IO.StreamReader(stream);
-        return reader.ReadToEnd();
+        log(verifyMsg);
+        var hash = Sha256File(path);
+        if (!hash.Equals(sha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(failMsg);
+        log(okMsg);
+        return File.OpenRead(path);
     }
 }

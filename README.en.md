@@ -18,7 +18,7 @@ Official DLSS neural rendering (transformer models + Neural Rendering) ships onl
 
 - 🎮 **Three game cards**: MSFS 2024 / MSFS 2020 (Beta) / X-Plane 12 — each card keeps just two buttons: Install and Uninstall
 - 🌐 **Bilingual UI**: pick your language on first launch, switch anytime in Settings
-- 📦 **Fully offline**: every install component (~440MB) is embedded in a single EXE — download once, install offline forever, zero network config
+- 📦 **Ultra-lightweight + server distribution**: the app itself is only ~70MB (zero embedded packages); installs auto-download packages from our own server (server → GitHub → mirror failover, resumable transfers, SHA256-verified), cached locally for offline reinstalls
 - 🔄 **Auto-update**: checks GitHub Releases on launch and force-updates when a new version exists (mirror fallback + slow-transfer watchdog for both check and download, SHA256-verified, automatic swap & restart)
 - 🖥️ **Dark card-style UI**, native WinForms single EXE (~510 MB, self-contained), high-DPI / 4K ready
 - 🔒 **Safe & reversible**: installs back up every modified file and config; uninstall restores everything — saves and add-ons are never touched
@@ -99,10 +99,9 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 Requirements: .NET 8 SDK (`net8.0-windows` + WinForms), Windows 10/11 only.
 
-> Note: the install packages (`src/DLSS5Patcher/assets/`, ~440MB) are not stored in this repository due to size.
-> To build from source you must place them there yourself:
-> `dlss-unlocked-standalone-DLSSNR-v0.7.6.zip` (SHA256 `ca824acb…`), `ReShade64.dll` / `ReShade64.json` (extracted from the ReShade 6.8.0 Addon installer),
-> and `ReShade.fxh` / `ReShadeUI.fxh` / `DrawText.fxh`. Most users should simply grab a ready-made EXE from [Releases](../../releases).
+> Note: since v1.1.0 the EXE embeds no packages at all — packages are auto-downloaded at install time from the distribution server (primary) and GitHub Releases (fallback).
+> See `server/DEPLOY.md` for the server layout; build the XP12 kit with `tools/make_kit_zip.py` (then sync its SHA256 into `Core/PackageCatalog.cs`).
+> Override the primary source via the `DLSS5_REPO` env var or a `repo=` line in the config file (testing/emergency). Most users should simply grab a ready-made EXE from [Releases](../../releases).
 
 Code layout: `MainForm.cs` (shell + business logic), `Ui/Theme.cs` (design tokens & control factory), `Ui/HomePage.cs` (game cards + log), `Ui/TutorialPage.cs`, `Ui/AboutPage.cs`, `Ui/LanguageDialog.cs` (first-run language picker), `Core/` (installers, game locator, localization helper and config).
 
