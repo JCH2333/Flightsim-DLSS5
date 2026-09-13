@@ -450,32 +450,23 @@ public static class Theme
     /// <summary>
     /// 自绘滚动条（贴在 RichTextBox 右缘的细轨 + 可拖动滑块，替代系统白色滚动条视觉）。
     /// RichTextBox 自身需设 ScrollBars.None；滚轮由 WheelRouter 全局路由（悬停即滚，无需焦点）。
+    /// 定位用 EM_GETFIRSTVISIBLELINE/EM_GETLINECOUNT（行单位）——GetScrollInfo 在
+    /// ScrollBars.None 的 RichEdit 上返回的数值不可靠，且 EM_LINESCROLL 不触发 VScroll 事件，
+    /// 所以每次滚动后都显式调用 UpdateThumb。
     /// </summary>
     public sealed class ScrollIndicator : Panel
     {
         private readonly RichTextBox _rtb;
         private readonly Panel _fill = new();
         private bool _dragging;
-
-        [DllImport("user32.dll")]
-        private static extern bool GetScrollInfo(IntPtr hwnd, int bar, ref SCROLLINFO info);
+        private float _lineHeight = 19f;
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
 
         private const int EM_LINESCROLL = 0x00B6;
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct SCROLLINFO
-        {
-            public uint cbSize;
-            public uint fMask;
-            public int nMin;
-            public int nMax;
-            public uint nPage;
-            public int nPos;
-            public int nTrackPos;
-        }
+        private const int EM_GETLINECOUNT = 0x00BA;
+        private const int EM_GETFIRSTVISIBLELINE = 0x00CE;
 
         public ScrollIndicator(RichTextBox rtb)
         {
@@ -490,10 +481,12 @@ public static class Theme
             _fill.Visible = false;
             Controls.Add(_fill);
 
-            rtb.VScroll += (_, _) => UpdateThumb();
             rtb.TextChanged += (_, _) => UpdateThumb();
+            rtb.VScroll += (_, _) => UpdateThumb();
+            rtb.Resize += (_, _) => UpdateThumb();
+            rtb.FontChanged += (_, _) => { _lineHeight = rtb.Font.Height + 2f; UpdateThumb(); };
             // 注意：用 rtb 的 BeginInvoke（此时 ScrollIndicator 自身句柄还未创建，对它调用会抛异常）
-            rtb.HandleCreated += (_, _) => rtb.BeginInvoke(new Action(UpdateThumb));
+            rtb.HandleCreated += (_, _) => rtb.BeginInvoke(new Action(() => { _lineHeight = rtb.Font.Height + 2f; UpdateThumb(); }));
 
             MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { _dragging = true; DragTo(e.Y); } };
             MouseMove += (_, e) => { if (_dragging) DragTo(e.Y); };
@@ -509,43 +502,49 @@ public static class Theme
             base.OnPaint(e);
         }
 
-        private SCROLLINFO? Info()
-        {
-            if (!_rtb.IsHandleCreated) return null;
-            var si = new SCROLLINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<SCROLLINFO>(), fMask = 0x17 };
-            return GetScrollInfo(_rtb.Handle, 1, ref si) ? si : null;   // SB_VERT
-        }
+        private int LineCount => _rtb.IsHandleCreated ? SendMessage(_rtb.Handle, EM_GETLINECOUNT, IntPtr.Zero, IntPtr.Zero).ToInt32() : 0;
 
-        private int ThumbHeight(SCROLLINFO si)
+        private int FirstVisible => _rtb.IsHandleCreated ? SendMessage(_rtb.Handle, EM_GETFIRSTVISIBLELINE, IntPtr.Zero, IntPtr.Zero).ToInt32() : 0;
+
+        private int VisibleLines => Math.Max(1, (int)(_rtb.ClientSize.Height / _lineHeight));
+
+        /// <summary>滚轮路由调用：按行滚动并立即刷新滑块。</summary>
+        public void ScrollLines(int lines)
         {
-            return Math.Max(24, (int)(Height * (double)si.nPage / (si.nMax + 1)));
+            if (!_rtb.IsHandleCreated || lines == 0 || LineCount <= VisibleLines) return;
+            SendMessage(_rtb.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)lines);
+            UpdateThumb();
         }
 
         private void DragTo(int y)
         {
-            var si = Info();
-            if (si == null) return;
-            int thumbH = ThumbHeight(si.Value);
+            int total = LineCount;
+            int scrollable = total - VisibleLines;
+            if (scrollable <= 0) return;
+            int thumbH = ThumbHeight(total);
             int rail = Height - thumbH;
             if (rail <= 0) return;
-            double ratio = (y - thumbH / 2.0) / rail;
-            ratio = Math.Clamp(ratio, 0.0, 1.0);
-            int span = si.Value.nMax - (int)si.Value.nPage + 1;   // nPos 可达的最大值
-            if (span <= 0) return;
-            int delta = (int)Math.Round(ratio * span) - si.Value.nPos;
+            double ratio = Math.Clamp((y - thumbH / 2.0) / rail, 0.0, 1.0);
+            int delta = (int)Math.Round(ratio * scrollable) - FirstVisible;
             if (delta == 0) return;
             SendMessage(_rtb.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)delta);
             UpdateThumb();
         }
 
+        private int ThumbHeight(int total)
+        {
+            int visible = Math.Min(total, VisibleLines);
+            return Math.Max(24, (int)(Height * (float)visible / Math.Max(1, total)));
+        }
+
         private void UpdateThumb()
         {
-            var si = Info();
-            if (si == null) return;
-            var span = si.Value.nMax - (int)si.Value.nPage + 1;
-            if (span <= 0) { _fill.Visible = false; return; }
-            int thumbH = ThumbHeight(si.Value);
-            int top = (int)((Height - thumbH) * ((double)si.Value.nPos / span));
+            if (!_rtb.IsHandleCreated) return;
+            int total = LineCount;
+            int scrollable = total - VisibleLines;
+            if (scrollable <= 0) { _fill.Visible = false; return; }
+            int thumbH = ThumbHeight(total);
+            int top = (int)((Height - thumbH) * ((float)Math.Min(FirstVisible, scrollable) / scrollable));
             _fill.Visible = true;
             _fill.SetBounds(0, Math.Clamp(top, 0, Height - thumbH), 4, thumbH);
         }
@@ -561,10 +560,7 @@ public static class Theme
         public static readonly WheelRouter Default = new();
         private static bool _installed;
 
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
-
-        private readonly List<(Control Host, RichTextBox Target)> _pairs = new();
+        private readonly List<(Control Host, ScrollIndicator Bar)> _pairs = new();
         private WheelRouter() { }
 
         public static void Install()
@@ -574,27 +570,21 @@ public static class Theme
             _installed = true;
         }
 
-        public void Register(Control host, RichTextBox target) => _pairs.Add((host, target));
+        public void Register(Control host, ScrollIndicator bar) => _pairs.Add((host, bar));
 
         public bool PreFilterMessage(ref Message m)
         {
             const int WM_MOUSEWHEEL = 0x020A;
-            const int EM_LINESCROLL = 0x00B6;
             if (m.Msg != WM_MOUSEWHEEL) return false;
 
             var pos = Cursor.Position;
-            foreach (var (host, target) in _pairs)
+            foreach (var (host, bar) in _pairs)
             {
                 if (!host.Visible || !host.IsHandleCreated) continue;
                 if (!host.RectangleToScreen(host.ClientRectangle).Contains(pos)) continue;
 
-                if (target.IsHandleCreated)
-                {
-                    int raw = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);   // 滚轮刻度（有符号短整型）
-                    int lines = -Math.Sign(raw) * 5;                          // 上滚为正 → 向上滚
-                    if (lines != 0)
-                        SendMessage(target.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)lines);
-                }
+                int raw = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);   // 滚轮刻度（有符号短整型）
+                bar.ScrollLines(-Math.Sign(raw) * 5);                     // 上滚为正 → 向上滚
                 return true;   // 吞掉滚轮消息，避免它落到焦点控件上
             }
             return false;
@@ -611,7 +601,7 @@ public static class Theme
         };
         host.Controls.Add(indicator);
         indicator.BringToFront();
-        WheelRouter.Default.Register(host, rtb);
+        WheelRouter.Default.Register(host, indicator);
         return indicator;
     }
 
