@@ -617,7 +617,8 @@ public sealed class MainForm : Form
         };
         if (cur != null && Directory.Exists(cur.GameDir)) dlg.InitialDirectory = cur.GameDir;
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        if (!File.Exists(dlg.FileName))
+        // 注意不能用 File.Exists：ACL 受限目录里对真实存在的 exe 会误报 false（视为“不存在”）
+        if (!GameLocator.FileExistsLoose(dlg.FileName))
         {
             MessageBox.Show(this,
                 L.S("所选文件不存在或当前账户无法访问。请确认路径正确；若游戏目录权限受限，请以管理员身份运行本工具后重试。",

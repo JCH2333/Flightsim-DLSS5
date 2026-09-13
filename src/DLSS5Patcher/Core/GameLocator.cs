@@ -75,14 +75,32 @@ public static class GameLocator
     }
 
     /// <summary>
-    /// 校验手动选择的目录（须包含目标 exe）。
-    /// 兼容 Xbox/微软商店结构：选到上层目录时自动尝试 Content 子目录。
+    /// 宽松的存在性检查。File.Exists 在 ACL 受限（拒绝读取属性）的游戏目录会对真实存在的
+    /// exe 静默返回 false（这正是“选择 exe 提示权限不足/不存在”的来源），这里用打开试探的
+    /// 异常类型区分“真不存在”与“存在但暂时读不了”。
     /// </summary>
+    public static bool FileExistsLoose(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) return true;
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return true;
+        }
+        catch (FileNotFoundException) { return false; }
+        catch (DirectoryNotFoundException) { return false; }
+        catch (ArgumentException) { return false; }
+        catch (NotSupportedException) { return false; }
+        catch (UnauthorizedAccessException) { return true; }   // 存在但拒绝读取 → 按存在处理
+        catch (IOException) { return true; }                  // 被占用等 → 按存在处理
+    }
+
+    /// <summary>校验手动选择的目录（须包含目标 exe）。</summary>
     public static GameInstall? FromManualDir(string dir, string exeName)
     {
         foreach (var candidate in new[] { dir, Path.Combine(dir, "Content") })
         {
-            if (File.Exists(Path.Combine(candidate, exeName)))
+            if (FileExistsLoose(Path.Combine(candidate, exeName)))
                 return new GameInstall { GameDir = candidate, ExePath = Path.Combine(candidate, exeName), Source = L.S("手动指定", "Manual"), ExeName = exeName };
         }
         return null;
@@ -91,9 +109,11 @@ public static class GameLocator
     /// <summary>校验手动选择的主程序文件：文件名须与目标 exe 一致，exe 所在目录即游戏目录（商店版 exe 本就在 Content 内）。</summary>
     public static GameInstall? FromManualExe(string exePath, string exeName)
     {
-        if (!File.Exists(exePath)) return null;
+        if (!FileExistsLoose(exePath)) return null;
         if (!string.Equals(Path.GetFileName(exePath), exeName, StringComparison.OrdinalIgnoreCase)) return null;
-        var full = Path.GetFullPath(exePath);
+        string full;
+        try { full = Path.GetFullPath(exePath); }
+        catch { return null; }
         var dir = Path.GetDirectoryName(full)!;
         return new GameInstall { GameDir = dir, ExePath = full, Source = L.S("手动指定", "Manual"), ExeName = exeName };
     }
