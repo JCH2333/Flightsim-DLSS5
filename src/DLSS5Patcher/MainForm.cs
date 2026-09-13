@@ -21,9 +21,10 @@ public sealed class MainForm : Form
 
     private readonly HomePage _home = new();
     private readonly TutorialPage _tutorial = new();
+    private readonly FeedbackPage _feedback = new();
     private readonly AboutPage _about = new();
-    private readonly Control[] _pages = new Control[3];
-    private readonly Button[] _nav = new Button[3];
+    private readonly Control[] _pages = new Control[4];
+    private readonly Button[] _nav = new Button[4];
 
     public MainForm()
     {
@@ -38,7 +39,8 @@ public sealed class MainForm : Form
 
         _pages[0] = _home;
         _pages[1] = _tutorial;
-        _pages[2] = _about;
+        _pages[2] = _feedback;
+        _pages[3] = _about;
 
         BuildSidebar();
 
@@ -66,6 +68,7 @@ public sealed class MainForm : Form
         _ = RefreshAsync();
 
         Updater.CleanLeftovers();
+        AppLog.Info(L.S($"主窗体就绪（v{Updater.CurrentVersion}）", $"Main form ready (v{Updater.CurrentVersion})"));
         Shown += async (_, _) => await RunUpdateCheckAsync(startup: true);
     }
 
@@ -81,7 +84,7 @@ public sealed class MainForm : Form
         brandSub.Location = new Point(20, 56);
         Controls.Add(brandSub);
 
-        string[] navTexts = { L.S("一键安装", "Install"), L.S("使用教程", "Tutorial"), L.S("设置 · 关于", "Settings · About") };
+        string[] navTexts = { L.S("一键安装", "Install"), L.S("使用教程", "Tutorial"), L.S("问题反馈", "Feedback"), L.S("设置 · 关于", "Settings · About") };
         for (int i = 0; i < navTexts.Length; i++)
         {
             int idx = i; // for 循环变量是共享的，闭包必须捕获局部副本
@@ -110,7 +113,7 @@ public sealed class MainForm : Form
         var qq = Theme.MakeLabel(L.S("QQ 群 615523002", "QQ Group 615523002"), Theme.Accent, 8.5f, bold: true);
         qq.Location = new Point(20, ClientH - 74);
         qq.Cursor = Cursors.Hand;
-        qq.Click += (_, _) => SelectNav(2);
+        qq.Click += (_, _) => SelectNav(3);
         Controls.Add(qq);
 
         var free = Theme.MakeLabel(L.S("完全免费 · 禁止倒卖", "Free forever · No reselling"), Theme.TextMuted, 8f);
@@ -144,7 +147,11 @@ public sealed class MainForm : Form
         _about.CheckUpdateRequested += () => _ = RunUpdateCheckAsync(startup: false);
     }
 
-    private void Log(string s) => _home.Log(s);
+    private void Log(string s)
+    {
+        _home.Log(s);
+        AppLog.Info(s);
+    }
 
     // ───────────────────────────── 自动更新 ─────────────────────────────
 
@@ -265,6 +272,8 @@ public sealed class MainForm : Form
                 _game2020 != null ? $"{_game2020.GameDir}   [{_game2020.Source}]" : L.S("未检测到（可点击右侧按钮指定游戏主程序）", "Not detected (use the button on the right to pick the game executable)"),
                 _gameXp12 != null ? $"{_gameXp12.GameDir}   [{_gameXp12.Source}]" : L.S("未检测到（可点击右侧按钮指定 X-Plane.exe）", "Not detected (use the button on the right to pick X-Plane.exe)"),
                 KitStatusText());
+
+            _feedback.SetEnvironment(_gpu, _game2024, _game2020, _gameXp12);
         }
         catch (Exception ex)
         {

@@ -50,6 +50,21 @@ curl -r 0-1023 -o /dev/null -w "%{http_code}\n" http://47.109.31.236:8420/repo/d
 3. GitHub Release 同步发一份（客户端备用源）；包体文件变化时同步 `packages/`
 4. 客户端清单缓存 5 分钟（nginx Cache-Control），无需重启任何服务
 
+## 反馈服务（v1.2.0 起）
+
+客户端「问题反馈」页 POST 到 `/repo/dlss5/feedback` → nginx 反代 → 本机 python 服务（127.0.0.1:8430）。
+
+```bash
+# 部署（已完成）
+sudo cp feedback_server.py /srv/ && sudo cp feedback.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now feedback
+# nginx: repo.conf 内含 /repo/dlss5/feedback 反代块（client_max_body_size 48m）
+```
+
+- 存储：`/var/lib/dlss5-feedback/<反馈编号>/`（report.json + logs/ + shots/），**不在 web 根目录下，不可被下载**
+- 限流：每 IP 每天 10 条、每 10 分钟 1 条（状态在 `/var/lib/dlss5-feedback/_state.json`）
+- 读取：本机 `tools/read_feedback.py list | show <ID> | fetch <ID>`（SSH 凭据走环境变量）
+
 ## 客户端源顺序（v1.1.0）
 
 1. `http://47.109.31.236:8420/repo/dlss5`（主源）

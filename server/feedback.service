@@ -1,0 +1,13 @@
+[Unit]
+Description=DLSS5 feedback receiver
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /srv/feedback_server.py 8430
+Environment=FEEDBACK_DIR=/var/lib/dlss5-feedback
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
