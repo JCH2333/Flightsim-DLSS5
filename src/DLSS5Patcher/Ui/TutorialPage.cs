@@ -3,25 +3,31 @@
 namespace DLSS5Patcher.Ui;
 
 /// <summary>教程页：安装/使用说明 + 出问题时应向作者提交的文件清单。</summary>
-public sealed class TutorialPage : UserControl
+public sealed class TutorialPage : Theme.AmbientPage
 {
     private readonly RichTextBox _rtb = new();
 
     public TutorialPage()
     {
-        BackColor = Theme.Bg;
-        Size = new Size(880, 800);
+        Size = new Size(862, 800);
 
-        Controls.Add(Theme.MakePageTitle(L.S("使用教程", "Tutorial"), 24, 16));
+        Controls.Add(Theme.MakePageHeader(L.S("TUTORIAL", "TUTORIAL"), L.S("使用教程", "Tutorial")));
 
-        var panel = new Panel { Location = new Point(24, 52), Size = new Size(832, 726), BackColor = Theme.Surface, Padding = new Padding(10) };
-        Theme.EnableBorder(panel, Theme.Border);
+        var panel = new Theme.GlassCard
+        {
+            Location = new Point(36, 100),
+            Size = new Size(790, 676),
+            Fill = Theme.SurfaceInset,
+            BorderColor = Theme.Border,
+            Radius = 10,
+            Padding = new Padding(16),
+        };
 
         _rtb.Dock = DockStyle.Fill;
-        _rtb.BackColor = Theme.Surface;
+        _rtb.BackColor = Theme.SurfaceInset;
         _rtb.BorderStyle = BorderStyle.None;
         _rtb.ReadOnly = true;
-        _rtb.Font = new Font("Microsoft YaHei UI", 9f);
+        _rtb.Font = new Font(Theme.FontUi, 9.25f);
         _rtb.ScrollBars = RichTextBoxScrollBars.Vertical;
         panel.Controls.Add(_rtb);
         Controls.Add(panel);
@@ -37,7 +43,7 @@ public sealed class TutorialPage : UserControl
         _rtb.AppendText(text);
     }
 
-    private void Heading(string text) { Add(text + "\r\n", Theme.Accent, 10.5f, bold: true); }
+    private void Heading(string text) { Add(text + "\r\n", Theme.Signal, 10.5f, bold: true); }
     private void Line(string text) { Add(text + "\r\n", Theme.TextSecondary); }
     private void Gap() { Add("\r\n", Theme.TextSecondary); }
 

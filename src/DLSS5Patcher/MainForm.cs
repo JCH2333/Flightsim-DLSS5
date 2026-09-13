@@ -4,15 +4,15 @@ using DLSS5Patcher.Ui;
 namespace DLSS5Patcher;
 
 /// <summary>
-/// 主窗体：左侧导航（一键安装 / 使用教程 / 设置·关于）+ 右侧内容区。
-/// 视觉风格对齐 GSX 汉化安装器（深色 + 主题绿卡片），中英双语（首启选择，设置页可切换）。
-/// 支持的游戏与路线：MSFS 2024（OptiScaler）、MSFS 2020（占位）、X-Plane 12（DLSS5-Feeder · Vulkan）。
+/// 主窗体：自绘玻璃标题栏 + 左侧 218px 导航（一键安装 / 教程 / 反馈 / 设置）+ 右侧环境光晕内容区。
+/// 视觉对齐 GSX 汉化 2.0.0（毛玻璃 + 简约高级感），中英双语；支持 MSFS 2024 / 2020(Beta) / X-Plane 12。
 /// </summary>
 public sealed class MainForm : Form
 {
     private const int ClientW = 1080;
-    private const int ClientH = 800;
-    private const int SidebarW = 200;
+    private const int ClientH = 838;          // 含 38px 自绘标题栏
+    private const int TitleBarH = 38;
+    private const int SidebarW = 218;
 
     private GpuInfo _gpu = new("", "", GpuGeneration.Unknown);
     private GameInstall? _game2024;
@@ -24,17 +24,19 @@ public sealed class MainForm : Form
     private readonly FeedbackPage _feedback = new();
     private readonly AboutPage _about = new();
     private readonly Control[] _pages = new Control[4];
-    private readonly Button[] _nav = new Button[4];
+    private readonly Theme.NavButton[] _nav = new Theme.NavButton[4];
+    private readonly List<Control> _titleButtons = new();
 
     public MainForm()
     {
         Text = L.S("DLSS5 神经渲染安装器 — MSFS 2024 / X-Plane 12（RTX 20-50 系）",
                    "DLSS5 Neural Render Patcher — MSFS 2024 / X-Plane 12 (RTX 20-50 series)");
-        Font = new Font("Microsoft YaHei UI", 9F);
-        BackColor = Theme.Sidebar;
+        Font = new Font(Theme.FontUi, 9F);
+        BackColor = Theme.TitleBar;
         ClientSize = new Size(ClientW, ClientH);
-        FormBorderStyle = FormBorderStyle.FixedSingle;
+        FormBorderStyle = FormBorderStyle.None;
         MaximizeBox = false;
+        MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
 
         _pages[0] = _home;
@@ -42,15 +44,21 @@ public sealed class MainForm : Form
         _pages[2] = _feedback;
         _pages[3] = _about;
 
+        BuildTitleBar();
         BuildSidebar();
 
         var content = new Panel
         {
-            Location = new Point(SidebarW, 0),
-            Size = new Size(ClientW - SidebarW, ClientH),
+            Location = new Point(SidebarW, TitleBarH),
+            Size = new Size(ClientW - SidebarW, ClientH - TitleBarH),
             BackColor = Theme.Bg,
         };
-        foreach (var p in _pages) content.Controls.Add(p);
+        foreach (var p in _pages)
+        {
+            p.Location = new Point(0, 0);
+            p.Size = content.Size;
+            content.Controls.Add(p);
+        }
         Controls.Add(content);
 
         WireEvents();
@@ -72,53 +80,151 @@ public sealed class MainForm : Form
         Shown += async (_, _) => await RunUpdateCheckAsync(startup: true);
     }
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Theme.ApplyWindowChrome(this);   // Win11 圆角 + 深色属性
+    }
+
+    // 拖动自绘标题栏（避开窗口按钮区）
+    protected override void WndProc(ref Message m)
+    {
+        const int WM_NCHITTEST = 0x84;
+        base.WndProc(ref m);
+        if (m.Msg == WM_NCHITTEST && m.Result.ToInt32() == 1)   // HTCLIENT
+        {
+            short x = (short)(m.LParam.ToInt64() & 0xFFFF);
+            short y = (short)((m.LParam.ToInt64() >> 16) & 0xFFFF);
+            var p = PointToClient(new Point(x, y));
+            if (p.Y < TitleBarH && p.X < ClientSize.Width - 92)
+                m.Result = (IntPtr)2;                            // HTCAPTION
+        }
+    }
+
     // ───────────────────────────── 外壳 UI ─────────────────────────────
+
+    private void BuildTitleBar()
+    {
+        var bar = new Panel
+        {
+            Location = new Point(0, 0),
+            Size = new Size(ClientW, TitleBarH),
+            BackColor = Theme.TitleBar,
+        };
+        bar.Paint += (_, e) =>
+        {
+            using var pen = new Pen(Theme.Border);
+            e.Graphics.DrawLine(pen, 0, bar.Height - 1, bar.Width, bar.Height - 1);
+        };
+
+        var logo = Theme.MakeLabel("DLSS5", Theme.Text, 10.5f, bold: true, fontFamily: Theme.FontBrand);
+        logo.Location = new Point(13, 10);
+        bar.Controls.Add(logo);
+
+        var ver = Theme.MakeLabel("v" + Updater.CurrentVersion, Theme.TextMuted, 8f, fontFamily: Theme.FontBrand);
+        ver.Location = new Point(logo.Right + 8, 12);
+        bar.Controls.Add(ver);
+
+        var dragHint = Theme.MakeLabel(Text, Theme.TextMuted, 8f);
+        dragHint.Location = new Point(13, 22);
+        dragHint.Visible = false;   // 仅保留无障碍文本；视觉走极简
+        bar.Controls.Add(dragHint);
+
+        Controls.Add(bar);
+        _titleButtons.Add(bar);
+
+        AddWindowButton(bar, "─", minimizeGlyph: true, Theme.TextSecondary, Theme.SurfaceHover, (_, _) => WindowState = FormWindowState.Minimized);
+        AddWindowButton(bar, "✕", minimizeGlyph: false, Theme.TextSecondary, Theme.DangerHover, (_, _) => Close());
+    }
+
+    private void AddWindowButton(Panel bar, string glyph, bool minimizeGlyph, Color fg, Color hoverBg, EventHandler onClick)
+    {
+        var b = new Theme.GlassButton
+        {
+            Text = glyph,
+            Size = new Size(46, TitleBarH - 1),
+            Location = new Point(ClientSize.Width - (minimizeGlyph ? 92 : 46), 0),
+            Font = new Font(Theme.FontUi, 9.5f, FontStyle.Regular),
+            ForeColor = fg,
+            BackColor = Theme.TitleBar,
+        };
+        b.Primary = false;
+        // 悬停底色（close 红）与直角样式由绘制覆写
+        b.Paint += (_, e) =>
+        {
+            if (b.ClientRectangle.Contains(b.PointToClient(Cursor.Position)))
+            {
+                using var br = new SolidBrush(hoverBg);
+                e.Graphics.FillRectangle(br, 0, 0, b.Width, b.Height);
+                TextRenderer.DrawText(e.Graphics, glyph, b.Font, b.ClientRectangle,
+                    hoverBg == Theme.DangerHover ? Color.White : Theme.Text,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            }
+        };
+        b.Click += onClick;
+        Controls.Add(b);
+        b.BringToFront();
+        _titleButtons.Add(b);
+    }
 
     private void BuildSidebar()
     {
-        var brand = Theme.MakeLabel("DLSS5", Theme.Accent, 16f, bold: true);
-        brand.Location = new Point(20, 24);
-        Controls.Add(brand);
+        var sidebar = new Panel
+        {
+            Location = new Point(0, TitleBarH),
+            Size = new Size(SidebarW, ClientH - TitleBarH),
+            BackColor = Theme.TitleBar,
+        };
+        sidebar.Paint += (_, e) =>
+        {
+            using var pen = new Pen(Theme.Border);
+            e.Graphics.DrawLine(pen, sidebar.Width - 1, 0, sidebar.Width - 1, sidebar.Height);
+        };
+        Controls.Add(sidebar);
+        sidebar.BringToFront();
 
-        var brandSub = Theme.MakeLabel(L.S("MSFS · XP12 神经渲染", "MSFS · XP12 Neural Render"), Theme.TextMuted, 8f);
-        brandSub.Location = new Point(20, 56);
-        Controls.Add(brandSub);
+        var brand = Theme.MakeLabel("DLSS5", Theme.Text, 19f, bold: true, fontFamily: Theme.FontBrand);
+        brand.Location = new Point(22, 26);
+        sidebar.Controls.Add(brand);
+
+        var brandSub = Theme.MakeLabel("MSFS · XP12 NEURAL", Theme.TextMuted, 8.25f, bold: true, fontFamily: Theme.FontBrand);
+        brandSub.Location = new Point(24, 56);
+        sidebar.Controls.Add(brandSub);
 
         string[] navTexts = { L.S("一键安装", "Install"), L.S("使用教程", "Tutorial"), L.S("问题反馈", "Feedback"), L.S("设置 · 关于", "Settings · About") };
         for (int i = 0; i < navTexts.Length; i++)
         {
             int idx = i; // for 循环变量是共享的，闭包必须捕获局部副本
-            var b = new Button
+            var b = new Theme.NavButton
             {
                 Text = navTexts[i],
-                FlatStyle = FlatStyle.Flat,
-                Size = new Size(SidebarW - 32, 40),
-                Location = new Point(16, 100 + i * 46),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(14, 0, 0, 0),
-                Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold),
-                Cursor = Cursors.Hand,
+                Size = new Size(SidebarW - 28, 44),
+                Location = new Point(14, 104 + i * 50),
                 TabStop = false,
             };
-            b.FlatAppearance.BorderSize = 0;
-            b.FlatAppearance.MouseOverBackColor = Theme.SurfaceHover;
             b.Click += (_, _) => SelectNav(idx);
             _nav[i] = b;
-            Controls.Add(b);
+            sidebar.Controls.Add(b);
         }
 
-        var separator = new Panel { BackColor = Theme.Border, Location = new Point(16, ClientH - 92), Size = new Size(SidebarW - 32, 1) };
-        Controls.Add(separator);
+        var separator = new Panel { BackColor = Theme.Border, Location = new Point(14, ClientH - TitleBarH - 96), Size = new Size(SidebarW - 28, 1) };
+        sidebar.Controls.Add(separator);
 
-        var qq = Theme.MakeLabel(L.S("QQ 群 615523002", "QQ Group 615523002"), Theme.Accent, 8.5f, bold: true);
-        qq.Location = new Point(20, ClientH - 74);
-        qq.Cursor = Cursors.Hand;
-        qq.Click += (_, _) => SelectNav(3);
-        Controls.Add(qq);
+        var dot = new Panel
+        {
+            Size = new Size(8, 8),
+            Location = new Point(20, ClientH - TitleBarH - 72),
+            BackColor = Theme.Signal,
+        };
+        sidebar.Controls.Add(dot);
 
-        var free = Theme.MakeLabel(L.S("完全免费 · 禁止倒卖", "Free forever · No reselling"), Theme.TextMuted, 8f);
-        free.Location = new Point(20, ClientH - 50);
-        Controls.Add(free);
+        var free = Theme.MakeLabel(L.S("完全免费 · 禁止倒卖", "Free forever · No reselling"), Theme.TextSecondary, 9f, bold: true);
+        free.Location = new Point(38, ClientH - TitleBarH - 76);
+        sidebar.Controls.Add(free);
+
+        var ver = Theme.MakeLabel("DLSS5Patcher v" + Updater.CurrentVersion, Theme.TextMuted, 8f);
+        ver.Location = new Point(38, ClientH - TitleBarH - 56);
+        sidebar.Controls.Add(ver);
     }
 
     private void SelectNav(int idx)
@@ -126,8 +232,8 @@ public sealed class MainForm : Form
         _pages[idx].BringToFront();
         for (int i = 0; i < _nav.Length; i++)
         {
-            _nav[i].BackColor = i == idx ? Theme.SurfaceRaised : Theme.Sidebar;
-            _nav[i].ForeColor = i == idx ? Theme.Accent : Theme.TextSecondary;
+            _nav[i].Active = i == idx;
+            _nav[i].Invalidate();
         }
     }
 

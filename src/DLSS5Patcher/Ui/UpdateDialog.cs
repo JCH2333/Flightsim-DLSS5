@@ -14,9 +14,9 @@ public sealed class UpdateDialog : Form
     private readonly Panel _track;
     private readonly Panel _fill;
     private readonly Label _status;
-    private readonly Button _btnUpdate;
-    private readonly Button _btnPage;
-    private readonly Button _btnExit;
+    private readonly Theme.GlassButton _btnUpdate = new();
+    private readonly Theme.GlassButton _btnPage = new();
+    private readonly Theme.GlassButton _btnExit = new();
     private bool _allowClose;
 
     public UpdateDialog(Updater.UpdateInfo info)
@@ -31,9 +31,10 @@ public sealed class UpdateDialog : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(560, 400);
-        BackColor = Theme.Bg;
-        Font = new Font("Microsoft YaHei UI", 9F);
+        BackColor = Theme.FromHex("#1a1c18");
+        Font = new Font(Theme.FontUi, 9F);
         FormClosing += (_, e) => e.Cancel = !_allowClose;
+        Shown += (_, _) => Theme.ApplyWindowChrome(this);
 
         var title = Theme.MakeLabel(
             L.S($"发现新版本 {info.Tag}（当前 v{Updater.CurrentVersion}）",
@@ -57,18 +58,18 @@ public sealed class UpdateDialog : Form
             ScrollBars = ScrollBars.Vertical,
             Size = new Size(504, 168),
             Location = new Point(28, 84),
-            BackColor = Theme.SurfaceRaised,
+            BackColor = Theme.SurfaceInset,
             ForeColor = Theme.TextSecondary,
             BorderStyle = BorderStyle.FixedSingle,
-            Font = new Font("Microsoft YaHei UI", 8.25f),
+            Font = new Font(Theme.FontUi, 8.25f),
             Text = notesText,
         };
         _notes.Visible = notesText.Length > 0;
         Controls.Add(_notes);
 
-        _track = new Panel { Size = new Size(504, 8), Location = new Point(28, 268), BackColor = Theme.SurfaceRaised, Visible = false };
+        _track = new Panel { Size = new Size(504, 6), Location = new Point(28, 268), BackColor = Theme.FromHex("#353630"), Visible = false };
         Theme.EnableBorder(_track, Theme.Border);
-        _fill = new Panel { Size = new Size(0, 6), Location = new Point(1, 1), BackColor = Theme.AccentStrong };
+        _fill = new Panel { Size = new Size(0, 4), Location = new Point(1, 1), BackColor = Theme.SignalStrong };
         _track.Controls.Add(_fill);
         Controls.Add(_track);
 
@@ -79,27 +80,28 @@ public sealed class UpdateDialog : Form
             Size = new Size(504, 34),
             Location = new Point(28, 286),
             ForeColor = Theme.TextMuted,
-            Font = new Font("Microsoft YaHei UI", 8.5f),
+            Font = new Font(Theme.FontUi, 8.5f),
         };
         Controls.Add(_status);
 
-        _btnExit = Theme.MakeButton(L.S("退出程序", "Exit"));
-        _btnExit.Size = new Size(100, 34);
-        _btnExit.Location = new Point(142, 336);
+        _btnExit.Text = L.S("退出程序", "Exit");
+        _btnExit.Size = new Size(100, 40);
+        _btnExit.Location = new Point(142, 332);
         _btnExit.Visible = false;
         _btnExit.Click += (_, _) => { _allowClose = true; Application.Exit(); };
         Controls.Add(_btnExit);
 
-        _btnPage = Theme.MakeButton(L.S("打开发布页", "Release Page"));
-        _btnPage.Size = new Size(130, 34);
-        _btnPage.Location = new Point(252, 336);
+        _btnPage.Text = L.S("打开发布页", "Release Page");
+        _btnPage.Size = new Size(130, 40);
+        _btnPage.Location = new Point(252, 332);
         _btnPage.Visible = false;
         _btnPage.Click += (_, _) => OpenUrl(Updater.ReleasesUrl);
         Controls.Add(_btnPage);
 
-        _btnUpdate = Theme.MakeButton(L.S("立即更新", "Update Now"), primary: true);
-        _btnUpdate.Size = new Size(140, 34);
-        _btnUpdate.Location = new Point(392, 336);
+        _btnUpdate.Text = L.S("立即更新", "Update Now");
+        _btnUpdate.Primary = true;
+        _btnUpdate.Size = new Size(140, 40);
+        _btnUpdate.Location = new Point(392, 332);
         _btnUpdate.Click += (_, _) => _ = RunAsync();
         Controls.Add(_btnUpdate);
 

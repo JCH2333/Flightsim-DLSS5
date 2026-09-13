@@ -1,26 +1,54 @@
+using System.Runtime.InteropServices;
+
 namespace DLSS5Patcher.Ui;
 
 /// <summary>
-/// 深色主题设计令牌与控件工厂。配色取自 GSX 汉化安装器的视觉语言（深色 + 主题绿 + 圆角卡片）。
-/// 所有布局按 96 DPI 设计，由 MainForm 在启动时按真实 DPI 整体缩放。
+/// 深色玻璃拟态设计令牌与控件工厂（对齐 GSX 汉化 2.0.0 视觉语言）。
+/// 底色 #121310 + 三团环境光晕 + 白色低透明玻璃表面（GDI 无 backdrop-filter，用预混色还原）
+/// + 12px 圆角卡片 + Bahnschrift 品牌字 + 绿色信号色。所有布局按 96 DPI 设计，主窗体启动时整体缩放。
 /// </summary>
 public static class Theme
 {
-    public static readonly Color Bg            = FromHex("#171816");
-    public static readonly Color Sidebar       = FromHex("#1b1c19");
-    public static readonly Color Surface       = FromHex("#20211e");
-    public static readonly Color SurfaceRaised = FromHex("#292a26");
-    public static readonly Color SurfaceHover  = FromHex("#30312c");
-    public static readonly Color Border        = FromHex("#3a3b35");
-    public static readonly Color BorderStrong  = FromHex("#515249");
-    public static readonly Color Text          = FromHex("#f1f2ec");
-    public static readonly Color TextSecondary = FromHex("#b8baaf");
-    public static readonly Color TextMuted     = FromHex("#85877e");
-    public static readonly Color Accent        = FromHex("#62d6a3");
-    public static readonly Color AccentStrong  = FromHex("#39bd87");
-    public static readonly Color AccentText    = FromHex("#102019");
-    public static readonly Color Warning       = FromHex("#e3b253");
-    public static readonly Color Danger        = FromHex("#e66c62");
+    // ── 基底与表面（玻璃预混色） ──
+    public static readonly Color Bg            = FromHex("#121310");
+    public static readonly Color TitleBar      = FromHex("#181916");   // rgba(255,255,255,.025) 叠加底色
+    public static readonly Color Surface       = FromHex("#1c1d1a");   // rgba(255,255,255,.042)
+    public static readonly Color SurfaceRaised = FromHex("#212220");   // .065
+    public static readonly Color SurfaceHover  = FromHex("#272826");   // .09
+    public static readonly Color SurfaceInset  = FromHex("#151613");   // 编辑器 / 日志内衬
+    public static readonly Color GlassBorder   = FromHex("#262724");   // rgba(255,255,255,.085)
+    public static readonly Color Border        = FromHex("#232420");   // rgba(255,255,255,.07)
+    public static readonly Color BorderStrong  = FromHex("#383936");   // .16
+    public static readonly Color ChipBorder    = FromHex("#3b3c36");
+
+    // ── 文本 ──
+    public static readonly Color Text          = FromHex("#f2f4ed");
+    public static readonly Color TextSecondary = FromHex("#b9bcae");
+    public static readonly Color TextMuted     = FromHex("#82857a");
+
+    // ── 信号色（绿） ──
+    public static readonly Color Signal        = FromHex("#6adfae");
+    public static readonly Color SignalStrong  = FromHex("#46cd96");
+    public static readonly Color SignalBg      = FromHex("#1b2720");   // rgba(106,223,174,.10)
+    public static readonly Color SignalBorder  = FromHex("#2e5443");   // rgba(106,223,174,.32)
+    public static readonly Color PrimaryBg     = FromHex("#283a30");   // rgba(106,223,174,.15) 叠玻璃
+    public static readonly Color PrimaryBorder = FromHex("#3d6e58");   // rgba(106,223,174,.42)
+    public static readonly Color PrimaryText   = FromHex("#c2f6df");
+    public static readonly Color PrimaryHover  = FromHex("#2e4a3c");
+    public static readonly Color PrimaryHoverBorder = FromHex("#4b9173");
+
+    // ── 语义色 ──
+    public static readonly Color Warning       = FromHex("#e5b65c");
+    public static readonly Color WarningBg     = FromHex("#2b261c");
+    public static readonly Color Danger        = FromHex("#e9766c");
+    public static readonly Color DangerHover   = FromHex("#c9473e");
+
+    public const string FontUi = "Microsoft YaHei UI";
+    public const string FontBrand = "Bahnschrift";
+
+    public const int RadiusCard = 12;
+    public const int RadiusNav = 11;
+    public const int RadiusButton = 10;
 
     public static Color FromHex(string hex)
     {
@@ -28,52 +56,329 @@ public static class Theme
         return Color.FromArgb(Convert.ToInt32(h[..2], 16), Convert.ToInt32(h[2..4], 16), Convert.ToInt32(h[4..6], 16));
     }
 
-    public static Button MakeButton(string text, bool primary = false)
+    // ───────────────────────────── 环境光晕 ─────────────────────────────
+
+    /// <summary>绘制 GSX 2.0 同款三团径向环境光（绿 / 蓝 / 琥珀）。</summary>
+    public static void PaintAmbient(Graphics g, Rectangle r)
     {
-        var b = new Button
-        {
-            Text = text,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = primary ? AccentStrong : Surface,
-            ForeColor = primary ? AccentText : TextSecondary,
-            Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold),
-            Cursor = Cursors.Hand,
-            Height = 32,
-            UseVisualStyleBackColor = false,
-        };
-        b.FlatAppearance.BorderSize = primary ? 0 : 1;
-        b.FlatAppearance.BorderColor = Border;
-        b.FlatAppearance.MouseOverBackColor = primary ? Accent : SurfaceHover;
-        b.FlatAppearance.MouseDownBackColor = primary ? AccentStrong : SurfaceRaised;
-        b.FlatAppearance.CheckedBackColor = primary ? AccentStrong : SurfaceRaised;
-        b.EnabledChanged += (_, _) =>
-        {
-            b.BackColor = b.Enabled ? (primary ? AccentStrong : Surface) : Surface;
-            b.ForeColor = b.Enabled ? (primary ? AccentText : TextSecondary) : TextMuted;
-        };
-        return b;
+        DrawGlow(g, r, 0.10f, -0.08f, 620, 460, FromHex("#6adfae"), 0.12f);
+        DrawGlow(g, r, 1.06f, 1.14f, 760, 540, FromHex("#5888eb"), 0.07f);
+        DrawGlow(g, r, 0.92f, -0.20f, 860, 640, FromHex("#e5b65c"), 0.05f);
     }
 
-    public static Label MakeLabel(string text, Color? color = null, float size = 9f, bool bold = false)
+    private static void DrawGlow(Graphics g, Rectangle r, float cx, float cy, int w, int h, Color c, float alpha)
+    {
+        var center = new PointF(r.X + r.Width * cx, r.Y + r.Height * cy);
+        using var path = new System.Drawing.Drawing2D.GraphicsPath();
+        path.AddEllipse(center.X - w / 2f, center.Y - h / 2f, w, h);
+        using var brush = new System.Drawing.Drawing2D.PathGradientBrush(path);
+        brush.CenterColor = Color.FromArgb((int)(255 * alpha), c);
+        brush.SurroundColors = new[] { Color.FromArgb(0, c) };
+        brush.FocusScales = new PointF(0.55f, 0.55f);
+        g.FillPath(brush, path);
+    }
+
+    /// <summary>圆角路径。</summary>
+    public static System.Drawing.Drawing2D.GraphicsPath RoundedPath(Rectangle r, int radius)
+    {
+        var d = radius * 2;
+        var path = new System.Drawing.Drawing2D.GraphicsPath();
+        if (d <= 0 || r.Width < d || r.Height < d)
+        {
+            path.AddRectangle(r);
+            return path;
+        }
+        path.AddArc(r.X, r.Y, d, d, 180, 90);
+        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
+    // ───────────────────────────── 环境底板 ─────────────────────────────
+
+    /// <summary>带环境光晕的页面底板。</summary>
+    public class AmbientPage : UserControl
+    {
+        public AmbientPage()
+        {
+            BackColor = Bg;
+            DoubleBuffered = true;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            e.Graphics.Clear(Bg);
+            PaintAmbient(e.Graphics, ClientRectangle);
+        }
+    }
+
+    /// <summary>玻璃卡片：圆角填充 + 1px 玻璃描边（填充画在背景擦除阶段，子控件透明底可正确回放）。</summary>
+    public sealed class GlassCard : Panel
+    {
+        public int Radius { get; set; } = RadiusCard;
+        public Color Fill { get; set; } = Surface;
+        public Color BorderColor { get; set; } = GlassBorder;
+
+        public GlassCard()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            BackColor = Color.Transparent;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var path = RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), Radius);
+            using var fill = new SolidBrush(Fill);
+            e.Graphics.FillPath(fill, path);
+            using var pen = new Pen(BorderColor);
+            e.Graphics.DrawPath(pen, path);
+        }
+
+        protected override void OnPaint(PaintEventArgs e) { }
+    }
+
+    // ───────────────────────────── 按钮 ─────────────────────────────
+
+    /// <summary>玻璃按钮（圆角 10 / 高 40 / 悬停微浮），primary 为绿色信号样式。</summary>
+    public sealed class GlassButton : Control
+    {
+        private bool _hover;
+        private bool _down;
+
+        public bool Primary { get; set; }
+
+        public GlassButton()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+            Font = new Font(FontUi, 9f, FontStyle.Bold);
+            Height = 40;
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { _hover = false; _down = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnMouseDown(MouseEventArgs e) { _down = true; Invalidate(); base.OnMouseDown(e); }
+        protected override void OnMouseUp(MouseEventArgs e) { _down = false; Invalidate(); base.OnMouseUp(e); }
+        protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Invalidate(); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using var path = RoundedPath(rect, RadiusButton);
+
+            Color fill, border, text;
+            if (Primary)
+            {
+                fill = !_hover ? PrimaryBg : PrimaryHover;
+                border = !_hover ? PrimaryBorder : PrimaryHoverBorder;
+                text = PrimaryText;
+            }
+            else
+            {
+                fill = _hover ? SurfaceHover : Surface;
+                border = _hover ? BorderStrong : GlassBorder;
+                text = _hover ? Theme.Text : TextSecondary;
+            }
+            if (!Enabled)
+            {
+                fill = Color.FromArgb(120, fill);
+                border = Color.FromArgb(120, border);
+                text = Color.FromArgb(110, text);
+            }
+            else if (_down)
+            {
+                fill = _hover ? ControlPaint.Dark(fill, 0.06f) : fill;
+            }
+
+            using (var b = new SolidBrush(fill)) e.Graphics.FillPath(b, path);
+            using (var p = new Pen(border)) e.Graphics.DrawPath(p, path);
+
+            TextRenderer.DrawText(e.Graphics, Text, Font, rect, text,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+        }
+    }
+
+    public static GlassButton MakeButton(string text, bool primary = false, int height = 40)
+    {
+        return new GlassButton { Text = text, Primary = primary, Height = height };
+    }
+
+    /// <summary>侧栏导航按钮（高 44 / 圆角 11 / 激活为绿色信号态）。</summary>
+    public sealed class NavButton : Control
+    {
+        private bool _hover;
+        public bool Active { get; set; }
+
+        public NavButton()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+            Font = new Font(FontUi, 9.75f, FontStyle.Bold);
+            Height = 44;
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using var path = RoundedPath(rect, RadiusNav);
+
+            Color fill, border, text;
+            if (Active)
+            {
+                fill = _hover ? FromHex("#20302a") : SignalBg;
+                border = SignalBorder;
+                text = Signal;
+            }
+            else if (_hover)
+            {
+                fill = Surface;
+                border = GlassBorder;
+                text = Theme.Text;
+            }
+            else
+            {
+                fill = Color.Transparent;
+                border = Color.Transparent;
+                text = TextSecondary;
+            }
+            if (fill != Color.Transparent)
+            {
+                using var b = new SolidBrush(fill);
+                e.Graphics.FillPath(b, path);
+            }
+            if (border != Color.Transparent)
+            {
+                using var p = new Pen(border);
+                e.Graphics.DrawPath(p, path);
+            }
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(rect.X + 13, rect.Y, rect.Width - 13, rect.Height),
+                text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+        }
+    }
+
+    // ───────────────────────────── 标签 / 徽章 / 页头 ─────────────────────────────
+
+    public static Label MakeLabel(string text, Color? color = null, float size = 9f, bool bold = false, string? fontFamily = null)
     {
         return new Label
         {
             Text = text,
             AutoSize = true,
             ForeColor = color ?? TextSecondary,
-            Font = new Font("Microsoft YaHei UI", size, bold ? FontStyle.Bold : FontStyle.Regular),
+            Font = new Font(fontFamily ?? FontUi, size, bold ? FontStyle.Bold : FontStyle.Regular),
             BackColor = Color.Transparent,
         };
     }
 
-    public static Panel MakeCard(int w, int h)
+    /// <summary>绿色小眉题（Bahnschrift）。</summary>
+    public static Label MakeEyebrow(string text)
     {
-        var p = new Panel { Size = new Size(w, h), BackColor = Surface };
-        EnableBorder(p, Border);
-        return p;
+        return new Label
+        {
+            Text = text,
+            AutoSize = true,
+            ForeColor = Signal,
+            Font = new Font(FontBrand, 9.75f, FontStyle.Bold),
+            BackColor = Color.Transparent,
+        };
     }
 
-    /// <summary>给面板画 1px 描边（WinForms Panel 无原生边框色）。</summary>
+    /// <summary>状态徽章（success / warning / muted）。</summary>
+    public static Label MakeBadge(string text, string tone = "muted")
+    {
+        var (bg, fg) = tone switch
+        {
+            "success" => (SignalBg, Signal),
+            "warning" => (WarningBg, Warning),
+            _ => (FromHex("#353630"), TextMuted),
+        };
+        return new Label
+        {
+            Text = text,
+            AutoSize = true,
+            BackColor = bg,
+            ForeColor = fg,
+            Font = new Font(FontUi, 8f),
+            Padding = new Padding(6, 3, 6, 3),
+        };
+    }
+
+    /// <summary>元信息小片（细边框）。</summary>
+    public static Label MakeChip(string text)
+    {
+        var lbl = new Label
+        {
+            Text = text,
+            AutoSize = true,
+            AutoEllipsis = true,
+            BackColor = Color.Transparent,
+            ForeColor = TextMuted,
+            Font = new Font(FontUi, 8f),
+            Padding = new Padding(6, 3, 6, 3),
+        };
+        lbl.Paint += (_, e) =>
+        {
+            using var pen = new Pen(ChipBorder);
+            e.Graphics.DrawRectangle(pen, 0, 0, lbl.Width - 1, lbl.Height - 1);
+        };
+        return lbl;
+    }
+
+    /// <summary>页头：绿色眉题 + 大标题（GSX view-header）。</summary>
+    public static Panel MakePageHeader(string eyebrow, string title, string? titleSuffix = null)
+    {
+        var host = new Panel { Location = new Point(36, 30), Size = new Size(790, 56), BackColor = Color.Transparent };
+        var eb = MakeEyebrow(eyebrow);
+        eb.Location = new Point(1, 0);
+        var h1 = MakeLabel(title, Text, 18f, bold: true);
+        h1.Location = new Point(0, 18);
+        host.Controls.Add(eb);
+        host.Controls.Add(h1);
+        if (titleSuffix != null)
+        {
+            var suf = MakeLabel(titleSuffix, TextMuted, 10f);
+            suf.Location = new Point(h1.Right + 10, 30);
+            host.Controls.Add(suf);
+        }
+        return host;
+    }
+
+    // ───────────────────────────── DWM（系统圆角 + 深色） ─────────────────────────────
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    /// <summary>Win11 圆角窗口 + 深色标题栏属性（Win10 静默降级）。</summary>
+    public static void ApplyWindowChrome(IWin32Window window)
+    {
+        try
+        {
+            var handle = window.Handle;
+            var on = 1;
+            DwmSetWindowAttribute(handle, 20, ref on, 4);      // DWMWA_USE_IMMERSIVE_DARK_MODE
+            var round = 2;                                     // DWMWCP_ROUND
+            DwmSetWindowAttribute(handle, 33, ref round, 4);   // DWMWA_WINDOW_CORNER_PREFERENCE
+        }
+        catch { /* Win10 无圆角，忽略 */ }
+    }
+
+    // ───────────────────────────── 兼容旧 API ─────────────────────────────
+
+    public static GlassCard MakeCard(int w, int h)
+    {
+        return new GlassCard { Size = new Size(w, h) };
+    }
+
     public static void EnableBorder(Control c, Color color)
     {
         c.Paint += (_, e) =>
@@ -81,17 +386,5 @@ public static class Theme
             using var pen = new Pen(color);
             e.Graphics.DrawRectangle(pen, 0, 0, c.Width - 1, c.Height - 1);
         };
-    }
-
-    /// <summary>页面主标题（大号加粗 + 绿色竖条）。返回的宿主面板需由调用方定位。</summary>
-    public static Panel MakePageTitle(string text, int x, int y)
-    {
-        var host = new Panel { Location = new Point(x, y), Size = new Size(420, 30), BackColor = Bg };
-        var bar = new Panel { Location = new Point(0, 5), Size = new Size(4, 20), BackColor = AccentStrong };
-        var lbl = MakeLabel(text, Text, 14f, bold: true);
-        lbl.Location = new Point(14, 1);
-        host.Controls.Add(bar);
-        host.Controls.Add(lbl);
-        return host;
     }
 }

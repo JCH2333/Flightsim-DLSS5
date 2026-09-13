@@ -2,7 +2,7 @@ using DLSS5Patcher.Core;
 
 namespace DLSS5Patcher.Ui;
 
-/// <summary>首次启动的语言选择对话框（双列大按钮），选择后写入 AppConfig。</summary>
+/// <summary>首次启动的语言选择对话框（玻璃深色 + 双列大按钮），选择后写入 AppConfig。</summary>
 public sealed class LanguageDialog : Form
 {
     public LanguageDialog()
@@ -14,8 +14,9 @@ public sealed class LanguageDialog : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(480, 220);
-        BackColor = Theme.Bg;
-        Font = new Font("Microsoft YaHei UI", 9F);
+        BackColor = Theme.FromHex("#1a1c18");
+        Font = new Font(Theme.FontUi, 9F);
+        Shown += (_, _) => Theme.ApplyWindowChrome(this);
 
         var title = Theme.MakeLabel("请选择界面语言", Theme.Text, 12f, bold: true);
         title.Location = new Point(30, 22);
@@ -28,14 +29,14 @@ public sealed class LanguageDialog : Form
         var btnZh = Theme.MakeButton("简体中文", primary: true);
         btnZh.Size = new Size(200, 56);
         btnZh.Location = new Point(30, 100);
-        btnZh.Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Bold);
+        btnZh.Font = new Font(Theme.FontUi, 11f, FontStyle.Bold);
         btnZh.Click += (_, _) => Choose("zh");
         Controls.Add(btnZh);
 
         var btnEn = Theme.MakeButton("English");
         btnEn.Size = new Size(200, 56);
         btnEn.Location = new Point(250, 100);
-        btnEn.Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Bold);
+        btnEn.Font = new Font(Theme.FontUi, 11f, FontStyle.Bold);
         btnEn.Click += (_, _) => Choose("en");
         Controls.Add(btnEn);
 

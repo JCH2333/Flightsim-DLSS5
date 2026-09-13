@@ -30,31 +30,31 @@ public sealed class FeedbackPage : UserControl
     private readonly CheckedListBox _lstLogs = new();
     private readonly TextBox _txtDesc = new();
     private readonly ListBox _lstShots = new();
-    private Button _btnSubmit = new();
+    private Theme.GlassButton _btnSubmit = new();
     private readonly Label _lblStatus = new();
     private readonly Label _lblCount = new();
 
     public FeedbackPage()
     {
         BackColor = Theme.Bg;
-        Size = new Size(880, 800);
+        Size = new Size(862, 800);
 
-        Controls.Add(Theme.MakePageTitle(L.S("问题反馈", "Feedback"), 24, 16));
+        Controls.Add(Theme.MakePageHeader(L.S("FEEDBACK", "FEEDBACK"), L.S("问题反馈", "Feedback")));
 
-        BuildEnvCard(52);
-        BuildGamesCard(234);
-        BuildLogsCard(302);
-        BuildDescCard(470);
-        BuildShotsCard(650);
-        BuildSubmitRow(762);
+        BuildEnvCard(100);
+        BuildGamesCard(272);
+        BuildLogsCard(338);
+        BuildDescCard(496);
+        BuildShotsCard(664);
+        BuildSubmitRow(766);
     }
 
     // ───────────────────────────── 环境信息 ─────────────────────────────
 
     private void BuildEnvCard(int y)
     {
-        var card = Theme.MakeCard(832, 172);
-        card.Location = new Point(24, y);
+        var card = Theme.MakeCard(790, 172);
+        card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(L.S("环境信息（自动识别）", "Environment (auto-detected)"), Theme.Text, 9.75f, bold: true);
         head.Location = new Point(16, 8);
@@ -89,8 +89,8 @@ public sealed class FeedbackPage : UserControl
 
     private void BuildGamesCard(int y)
     {
-        var card = Theme.MakeCard(832, 58);
-        card.Location = new Point(24, y);
+        var card = Theme.MakeCard(790, 58);
+        card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(L.S("出问题的游戏（可多选，勾选后自动附加对应日志）：", "Affected game(s) (multi-select; related logs are attached automatically):"),
             Theme.Text, 9.75f, bold: true);
@@ -117,8 +117,8 @@ public sealed class FeedbackPage : UserControl
 
     private void BuildLogsCard(int y)
     {
-        var card = Theme.MakeCard(832, 158);
-        card.Location = new Point(24, y);
+        var card = Theme.MakeCard(790, 158);
+        card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
             L.S("将附加的日志文件（大文件自动只取末尾 256KB）：", "Log files to attach (oversized logs are truncated to the last 256 KB):"),
@@ -131,7 +131,7 @@ public sealed class FeedbackPage : UserControl
         _lstLogs.ForeColor = Theme.TextSecondary;
         _lstLogs.BorderStyle = BorderStyle.FixedSingle;
         _lstLogs.Font = new Font("Microsoft YaHei UI", 8.5f);
-        _lstLogs.Size = new Size(800, 112);
+        _lstLogs.Size = new Size(758, 112);
         _lstLogs.Location = new Point(16, 32);
         _lstLogs.IntegralHeight = false;
         card.Controls.Add(_lstLogs);
@@ -141,8 +141,8 @@ public sealed class FeedbackPage : UserControl
 
     private void BuildDescCard(int y)
     {
-        var card = Theme.MakeCard(832, 170);
-        card.Location = new Point(24, y);
+        var card = Theme.MakeCard(790, 170);
+        card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
             L.S("问题描述（必填）：什么现象、何时出现、如何复现、游戏内设置等", "Description (required): what happens, when, how to reproduce, in-game settings..."),
@@ -163,7 +163,7 @@ public sealed class FeedbackPage : UserControl
         _txtDesc.ForeColor = Theme.Text;
         _txtDesc.BorderStyle = BorderStyle.FixedSingle;
         _txtDesc.Font = new Font("Microsoft YaHei UI", 9f);
-        _txtDesc.Size = new Size(800, 122);
+        _txtDesc.Size = new Size(758, 122);
         _txtDesc.Location = new Point(16, 32);
         _txtDesc.TextChanged += (_, _) => _lblCount.Text = $"{_txtDesc.Text.Length}/{MaxDescChars}";
         card.Controls.Add(_txtDesc);
@@ -173,8 +173,8 @@ public sealed class FeedbackPage : UserControl
 
     private void BuildShotsCard(int y)
     {
-        var card = Theme.MakeCard(832, 102);
-        card.Location = new Point(24, y);
+        var card = Theme.MakeCard(790, 102);
+        card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
             L.S("截图（可选，最多 4 张、每张 ≤ 8MB；建议包含游戏内报错/画面异常的画面）",
@@ -210,8 +210,8 @@ public sealed class FeedbackPage : UserControl
     private void BuildSubmitRow(int y)
     {
         _btnSubmit = Theme.MakeButton(L.S("提交反馈", "Submit Feedback"), primary: true);
-        _btnSubmit.Size = new Size(150, 34);
-        _btnSubmit.Location = new Point(24, y);
+        _btnSubmit.Size = new Size(150, 40);
+        _btnSubmit.Location = new Point(36, y);
         _btnSubmit.Click += (_, _) => _ = SubmitAsync();
         Controls.Add(_btnSubmit);
 
@@ -418,7 +418,7 @@ public sealed class FeedbackPage : UserControl
         {
             var id = await FeedbackClient.SubmitAsync(report);
             AppLog.Info($"反馈提交成功 {id}");
-            _lblStatus.ForeColor = Theme.Accent;
+            _lblStatus.ForeColor = Theme.Signal;
             _lblStatus.Text = L.S($"提交成功！反馈编号：{id}。请把编号发到粉丝群，便于跟踪处理。",
                                   $"Submitted! Feedback ID: {id}. Share this ID in the fan group for follow-up.");
             _txtDesc.Clear();
