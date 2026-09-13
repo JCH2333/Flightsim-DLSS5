@@ -1,29 +1,30 @@
-# DPI-aware full-window capture of DLSS5Patcher. Usage: capture_window.ps1 -Out <path.png>
+# Capture DLSS5Patcher window CONTENT via PrintWindow (background-safe: no focus steal, no z-order need).
 param([Parameter(Mandatory=$true)][string]$Out)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
-public class CW {
+public class PW {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
-  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
   public struct RECT { public int L, T, R, B; }
 }
 '@
-[CW]::SetProcessDPIAware() | Out-Null
+[PW]::SetProcessDPIAware() | Out-Null
 $p = Get-Process DLSS5Patcher -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
 $h = $p.MainWindowHandle
-[CW]::SetWindowPos($h, [IntPtr]::Zero, 60, 60, 0, 0, 0x0005) | Out-Null
-Start-Sleep -Milliseconds 600
-$r = New-Object CW+RECT
-[CW]::GetWindowRect($h, [ref]$r) | Out-Null
-$w = [int]($r.R) - [int]($r.L)
-$ht = [int]($r.B) - [int]($r.T)
+$r = New-Object PW+RECT
+[PW]::GetWindowRect($h, [ref]$r) | Out-Null
+$w = [int]($r.R) - [int]($r.L); $ht = [int]($r.B) - [int]($r.T)
 $bmp = New-Object System.Drawing.Bitmap($w, $ht)
 $g = [System.Drawing.Graphics]::FromImage($bmp)
-$g.CopyFromScreen([int]$r.L, [int]$r.T, 0, 0, $bmp.Size)
-$bmp.Save($Out)
-$g.Dispose(); $bmp.Dispose()
+$hdc = $g.GetHdc()
+# 2 = PW_RENDERFULLCONTENT (需要 DirectUI/硬件加速窗口的完整内容)
+$ok = [PW]::PrintWindow($h, $hdc, 2)
+$g.ReleaseHdc($hdc)
+$g.Dispose()
+if (-not $ok) { $bmp.Dispose(); throw 'PrintWindow failed' }
+$bmp.Save($Out); $bmp.Dispose()
 Write-Host ("saved {0} ({1}x{2})" -f $Out, $w, $ht)

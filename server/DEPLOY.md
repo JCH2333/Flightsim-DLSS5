@@ -65,6 +65,25 @@ sudo systemctl daemon-reload && sudo systemctl enable --now feedback
 - 限流：每 IP 每天 10 条、每 10 分钟 1 条（状态在 `/var/lib/dlss5-feedback/_state.json`）
 - 读取：本机 `tools/read_feedback.py list | show <ID> | fetch <ID>`（SSH 凭据走环境变量）
 
+## 站点 API：公告 + 赞助码 + 管理端（v1.2.0 起，替代 feedback.service）
+
+`dlss5_api.py` 是 feedback_server.py 的超集，同一个 8430 端口；旧 `/repo/dlss5/feedback` 客户端保持兼容。
+
+```bash
+sudo cp dlss5_api.py  /srv/repo/dlss5/server/
+sudo cp admin/        /srv/repo/dlss5/admin/          # 管理前端（静态页，nginx 直接回）
+sudo cp dlss5-api.service /etc/systemd/system/
+sudo systemctl disable --now feedback.service 2>/dev/null
+sudo systemctl daemon-reload && sudo systemctl enable --now dlss5-api
+# 依赖：pip3 install pycryptodome   （赞助码上传时服务端 AES-256-GCM 加密用）
+```
+
+- 存储：`/var/lib/dlss5-cms/`（secret.json=qr_key+管理员口令, chmod 600；announcements.json；state.json=token+流水号；sponsor-qr.json=加密信封缓存）
+- 公开接口：`GET /api/announcements?page&size`、`GET /api/announcements/popup`、`GET /api/assets/sponsor-qr`（nginx `location =` 直接静态回信封文件）
+- 管理接口：`POST /api/auth/login` 换 Bearer token（48h），`/api/admin/announcements` CRUD+publish+upload-image、`/api/admin/feedback` 列表/详情/状态、`POST /api/admin/assets/sponsor-qr` 替换收款码
+- 管理前端：`http://47.109.31.236:8420/repo/dlss5/admin/`（公告管理 / 问题反馈 / 赞助码 三个页签；**勿外传链接与口令**，口令在 `/var/lib/dlss5-cms/secret.json`）
+- 赞助码密钥：客户端与服务端各存一份（`/var/lib/dlss5-cms/secret.json` 的 qr_key，与客户端 SponsorQrClient 内嵌值一致）；换码走管理端上传，即时生效（客户端每次进赞助页都重新拉取）
+
 ## 客户端源顺序（v1.1.0）
 
 1. `http://47.109.31.236:8420/repo/dlss5`（主源）

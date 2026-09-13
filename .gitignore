@@ -38,3 +38,6 @@ src/DLSS5Patcher/assets/
 server/keys/
 server/dlss5/
 server/badrepo/
+
+# Python bytecode
+tools/__pycache__/

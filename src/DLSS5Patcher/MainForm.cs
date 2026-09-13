@@ -23,9 +23,12 @@ public sealed class MainForm : Form
     private readonly HomePage _home = new();
     private readonly TutorialPage _tutorial = new();
     private readonly FeedbackPage _feedback = new();
+    private readonly SponsorPage _sponsor = new();
     private readonly AboutPage _about = new();
-    private readonly Control[] _pages = new Control[4];
-    private readonly Theme.NavButton[] _nav = new Theme.NavButton[4];
+    private readonly AnnouncementsPage _ann = new();
+    private readonly Control[] _pages = new Control[6];
+    private readonly Theme.NavButton[] _nav = new Theme.NavButton[5];
+    private Panel _annDot = new();
     private readonly List<Control> _titleButtons = new();
 
     public MainForm()
@@ -43,7 +46,9 @@ public sealed class MainForm : Form
         _pages[0] = _home;
         _pages[1] = _tutorial;
         _pages[2] = _feedback;
-        _pages[3] = _about;
+        _pages[3] = _sponsor;
+        _pages[4] = _about;
+        _pages[5] = _ann;
 
         BuildTitleBar();
         BuildSidebar();
@@ -78,7 +83,12 @@ public sealed class MainForm : Form
 
         Updater.CleanLeftovers();
         AppLog.Info(L.S($"主窗体就绪（v{Updater.CurrentVersion}）", $"Main form ready (v{Updater.CurrentVersion})"));
-        Shown += async (_, _) => await RunUpdateCheckAsync(startup: true);
+        // 先做强制更新检查（可能弹模态框），完成后拉公告：更新未读点 + 弹窗逐条展示
+        Shown += async (_, _) =>
+        {
+            await RunUpdateCheckAsync(startup: true);
+            await LoadAnnouncementsAsync();
+        };
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -256,7 +266,29 @@ public sealed class MainForm : Form
         brandSub.Location = new Point(24, 56);
         sidebar.Controls.Add(brandSub);
 
-        string[] navTexts = { L.S("一键安装", "Install"), L.S("使用教程", "Tutorial"), L.S("问题反馈", "Feedback"), L.S("设置 · 关于", "Settings · About") };
+        // 公告铃铛（GSX brand-bell 同位：品牌块右上），未读公告时右上角绿色小点
+        var bell = new Theme.GlassButton
+        {
+            Text = "🔔",
+            Font = new Font("Segoe UI Emoji", 10.5f),
+            Size = new Size(32, 32),
+            Location = new Point(SidebarW - 48, 28),
+            TabStop = false,
+        };
+        bell.Click += (_, _) => SelectNav(5);
+        sidebar.Controls.Add(bell);
+
+        _annDot = new Panel
+        {
+            Size = new Size(9, 9),
+            BackColor = Theme.Signal,
+            Location = new Point(bell.Right - 7, bell.Top - 2),
+        };
+        _annDot.Visible = false;
+        sidebar.Controls.Add(_annDot);
+        _annDot.BringToFront();
+
+        string[] navTexts = { L.S("一键安装", "Install"), L.S("使用教程", "Tutorial"), L.S("问题反馈", "Feedback"), L.S("赞助", "Sponsor"), L.S("设置 · 关于", "Settings · About") };
         for (int i = 0; i < navTexts.Length; i++)
         {
             int idx = i; // for 循环变量是共享的，闭包必须捕获局部副本
@@ -300,6 +332,8 @@ public sealed class MainForm : Form
             _nav[i].Active = i == idx;
             _nav[i].Invalidate();
         }
+        if (idx == 3) _ = _sponsor.LoadAsync();   // 每次进入赞助页都重新拉码（服务端换码即时生效）
+        if (idx == 5) _ = _ann.ReloadAsync();     // 进入公告页：刷新列表并标记已读
     }
 
     private void WireEvents()
@@ -316,6 +350,37 @@ public sealed class MainForm : Form
         _about.XpBrowseRequested += () => BrowseForGame(2);
         _about.XpPickKitRequested += PickKitDir;
         _about.CheckUpdateRequested += () => _ = RunUpdateCheckAsync(startup: false);
+        _ann.Read += maxId =>
+        {
+            if (maxId <= AppConfig.AnnReadId) return;
+            AppConfig.AnnReadId = maxId;   // 已看完全部公告，未读点熄灭
+            AppConfig.Save();
+            _annDot.Visible = false;
+        };
+    }
+
+    /// <summary>启动时拉取公告：更新未读点 + 逐条弹窗展示未看过的弹窗公告（GSX 同款）。</summary>
+    private async Task LoadAnnouncementsAsync()
+    {
+        try
+        {
+            var listTask = AnnouncementsClient.FetchListAsync();
+            var popupTask = AnnouncementsClient.FetchPopupAsync();
+            var list = await listTask;
+            var popups = await popupTask;
+
+            if (IsHandleCreated)
+                BeginInvoke(() =>
+                {
+                    _annDot.Visible = list.Ok && list.Announcements.Any(a => a.Id > AppConfig.AnnReadId);
+                    if (popups.Ok && popups.Announcements.Count > 0)
+                        AnnouncementDialog.ShowChain(this, popups.Announcements);
+                });
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"公告加载失败（忽略）: {ex.Message}");
+        }
     }
 
     private void Log(string s)

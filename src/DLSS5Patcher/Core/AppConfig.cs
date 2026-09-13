@@ -22,6 +22,10 @@ public static class AppConfig
     /// <summary>分发服务器基地址覆盖（repo= 键；空 = 内置源。测试/应急用）。</summary>
     public static string RepoOverride { get; set; } = "";
 
+    /// <summary>公告已读水位（已看过的最大公告 id）与已展示过的弹窗公告 id 列表（逗号分隔）。</summary>
+    public static long AnnReadId { get; set; } = 0;
+    public static string AnnShownPopupIds { get; set; } = "";
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DLSS5Patcher", "config.txt");
 
@@ -53,6 +57,8 @@ public static class AppConfig
                 else if (key == "exe20") ManualExe20 = val;
                 else if (key == "exe12") ManualXp12Exe = val;
                 else if (key == "repo") RepoOverride = val;
+                else if (key == "annread") { if (long.TryParse(val, out var v)) AnnReadId = v; }
+                else if (key == "annshown") AnnShownPopupIds = val;
             }
         }
         catch { }
@@ -67,6 +73,7 @@ public static class AppConfig
             {
                 $"lang={Lang}", $"kit={KitDir}", $"dir24={ManualMsfs2024Dir}", $"dir20={ManualMsfs2020Dir}",
                 $"exe24={ManualExe24}", $"exe20={ManualExe20}", $"exe12={ManualXp12Exe}", $"repo={RepoOverride}",
+                $"annread={AnnReadId}", $"annshown={AnnShownPopupIds}",
             });
         }
         catch { }

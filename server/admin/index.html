@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DLSS5 管理端</title>
+<!-- 仅管理员使用：未挂公开入口；凭据见服务器 /var/lib/dlss5-cms/secret.json -->
+<style>
+:root{
+  --bg:#121310;--surface:#1c1d1a;--raised:#212220;--hover:#272826;--inset:#151613;
+  --border:#262724;--border-strong:#383936;--text:#f2f4ed;--text2:#b9bcae;--muted:#82857a;
+  --signal:#6adfae;--signal-bg:#1b2720;--signal-border:#2e5443;--warn:#e5b65c;--warn-bg:#2b261c;
+  --blue:#5888eb;--blue-bg:#1c2333;--danger:#e9766c;--danger-hover:#c9473e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 "Microsoft YaHei UI",system-ui,sans-serif;min-height:100vh}
+button{font:inherit;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text2);border-radius:8px;padding:7px 16px}
+button:hover{background:var(--hover);color:var(--text)}
+button.primary{background:var(--signal-bg);border-color:var(--signal-border);color:var(--signal);font-weight:600}
+button.primary:hover{background:#20302a}
+button.danger:hover{border-color:var(--danger);color:var(--danger)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{font:inherit;background:var(--raised);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--signal-border)}
+textarea{resize:vertical;min-height:140px}
+/* ── 登录 ── */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-card{width:360px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:34px 30px}
+.login-card h1{font-size:20px;letter-spacing:.5px}
+.login-card .brand{color:var(--signal);font-size:12px;font-weight:700;letter-spacing:2px;margin-bottom:6px}
+.login-card input{width:100%;margin-top:12px}
+.login-card button{width:100%;margin-top:20px;padding:10px}
+.login-err{color:var(--danger);font-size:12.5px;margin-top:12px;min-height:18px}
+/* ── 框架 ── */
+header{display:flex;align-items:center;gap:22px;padding:14px 28px;border-bottom:1px solid var(--border);background:var(--surface)}
+header .logo{font-family:Bahnschrift,"Microsoft YaHei UI";font-weight:700;font-size:17px}
+header .logo small{color:var(--muted);font-size:12px;font-weight:400;margin-left:8px}
+header nav{display:flex;gap:6px;flex:1}
+header nav button{border:none;background:transparent;padding:8px 14px;border-radius:9px}
+header nav button.active{background:var(--signal-bg);color:var(--signal);font-weight:600}
+header .unread{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;background:var(--warn);color:#1d1710;border-radius:9px;font-size:11px;text-align:center;font-weight:700}
+main{max-width:1180px;margin:0 auto;padding:26px 28px 60px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+.page-head h2{font-size:19px}
+.page-head p{color:var(--muted);font-size:12.5px}
+.toolbar{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;flex-wrap:wrap}
+.toolbar .grow{flex:1}
+/* ── 表格 ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;color:var(--muted);text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top;font-size:13px}
+tr:last-child td{border-bottom:none}
+tr.row:hover td{background:var(--raised)}
+.mono{font-family:Consolas,monospace;color:var(--text2)}
+.muted{color:var(--muted)}
+.ellipsis{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{display:inline-block;padding:2px 9px;border-radius:9px;font-size:12px;white-space:nowrap}
+.badge.draft{background:#2c2d29;color:var(--muted)}
+.badge.published{background:var(--signal-bg);color:var(--signal)}
+.badge.pending{background:var(--warn-bg);color:var(--warn)}
+.badge.processing{background:var(--blue-bg);color:var(--blue)}
+.badge.completed{background:var(--signal-bg);color:var(--signal)}
+.mini-tag{display:inline-block;padding:1px 7px;margin-right:5px;border-radius:7px;font-size:11.5px;border:1px solid var(--border-strong);color:var(--text2)}
+.mini-tag.on{background:var(--signal-bg);border-color:var(--signal-border);color:var(--signal)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-right:6px;vertical-align:1px}
+.empty{padding:46px;text-align:center;color:var(--muted)}
+/* ── 弹窗 ── */
+.backdrop{position:fixed;inset:0;background:rgba(8,9,7,.66);display:flex;align-items:center;justify-content:center;z-index:50;padding:30px}
+.modal{background:#1a1c18;border:1px solid var(--border-strong);border-radius:14px;width:640px;max-width:96vw;max-height:88vh;overflow:auto;padding:24px 26px}
+.modal h3{font-size:16px;margin-bottom:18px}
+.modal .close{float:right;border:none;background:none;color:var(--muted);font-size:18px;padding:0 4px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;color:var(--text2);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%}
+.field .hint{font-size:11.5px;color:var(--muted);margin-top:4px}
+.field-row{display:flex;gap:12px}.field-row .field{flex:1}
+.check-row{display:flex;gap:22px}
+.check-row label{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--text2);cursor:pointer}
+.check-row input{width:16px;height:16px;margin-top:3px;accent-color:#46cd96}
+.modal .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:7px 12px;font-size:13px;margin-bottom:16px}
+.kv .k{color:var(--muted)}
+.log-block{background:var(--inset);border:1px solid var(--border);border-radius:9px;padding:10px 12px;font:12px/1.55 Consolas,monospace;color:var(--text2);white-space:pre-wrap;word-break:break-all;max-height:260px;overflow:auto;margin-bottom:12px}
+.shots{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.shots img{max-width:230px;max-height:180px;border-radius:9px;border:1px solid var(--border-strong)}
+.upload-row{display:flex;gap:10px;align-items:center}
+.status-pick{display:flex;gap:8px;margin-bottom:12px}
+.status-pick button{padding:6px 14px}
+.status-pick button.active{background:var(--signal-bg);border-color:var(--signal-border);color:var(--signal)}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--signal-bg);border:1px solid var(--signal-border);color:var(--signal);padding:9px 22px;border-radius:10px;z-index:99;font-weight:600}
+.toast.err{background:#2b1d1c;border-color:var(--danger);color:var(--danger)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+const API = '/repo/dlss5/api';
+const $app = document.getElementById('app');
+let token = localStorage.getItem('dlss5-admin-token') || '';
+let tab = 'announcements';
+let annCache = [];
+
+// ─────────── 基础 ───────────
+async function api(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers);
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (opts.body && !(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  const resp = await fetch(API + path, Object.assign({}, opts, { headers }));
+  if (resp.status === 401) { setToken(''); throw new Error('登录已过期，请重新登录'); }
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok || body.code >= 400) throw new Error(body.message || body.error || ('HTTP ' + resp.status));
+  return body.data !== undefined ? body.data : body;
+}
+function setToken(t) { token = t; if (t) localStorage.setItem('dlss5-admin-token', t); else localStorage.removeItem('dlss5-admin-token'); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtTime(v) { if (!v) return '-'; return String(v).replace('T', ' ').slice(0, 16); }
+let toastTimer;
+function toast(msg, err) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (err ? ' err' : ''); el.textContent = msg;
+  document.body.appendChild(el);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 2600);
+}
+function modal(html) {
+  const bd = document.createElement('div'); bd.className = 'backdrop';
+  bd.innerHTML = '<div class="modal">' + html + '</div>';
+  bd.addEventListener('click', e => { if (e.target === bd) bd.remove(); });
+  document.body.appendChild(bd); return bd;
+}
+
+// ─────────── 登录 ───────────
+function renderLogin() {
+  $app.innerHTML = `
+  <div class="login-wrap"><form class="login-card" id="f">
+    <div class="brand">DLSS5 ADMIN</div><h1>管理端登录</h1>
+    <input name="u" placeholder="用户名" autocomplete="username" required>
+    <input name="p" type="password" placeholder="密码" autocomplete="current-password" required>
+    <div class="login-err" id="err"></div>
+    <button class="primary" type="submit">登 录</button>
+  </form></div>`;
+  document.getElementById('f').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ username: f.u.value.trim(), password: f.p.value }) });
+      setToken(data.token); renderShell(); switchTab(tab);
+    } catch (ex) { document.getElementById('err').textContent = ex.message; }
+  });
+}
+
+// ─────────── 框架 ───────────
+function renderShell() {
+  $app.innerHTML = `
+  <header>
+    <span class="logo">DLSS5<small>管理端</small></span>
+    <nav>
+      <button data-t="announcements">公告管理</button>
+      <button data-t="feedback">问题反馈<span class="unread" id="fbBadge" style="display:none">0</span></button>
+      <button data-t="sponsor">赞助码</button>
+    </nav>
+    <button id="logout">退出</button>
+  </header><main id="main"></main>`;
+  document.querySelectorAll('header nav button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.t)));
+  document.getElementById('logout').addEventListener('click', () => { setToken(''); renderLogin(); });
+}
+function switchTab(t) { tab = t; document.querySelectorAll('header nav button').forEach(b => b.classList.toggle('active', b.dataset.t === t)); ({ announcements: renderAnnouncements, feedback: renderFeedback, sponsor: renderSponsor })[t](); refreshUnread(); }
+async function refreshUnread() {
+  try {
+    const d = await api('/admin/feedback/unread-count');
+    const b = document.getElementById('fbBadge');
+    b.style.display = d.count > 0 ? 'inline-block' : 'none'; b.textContent = d.count;
+  } catch (e) { /* 401 已由 api() 处理 */ }
+}
+
+// ─────────── 公告管理 ───────────
+async function renderAnnouncements() {
+  const m = document.getElementById('main');
+  m.innerHTML = `
+  <div class="page-head">
+    <div><h2>公告管理</h2><p>创建、编辑、发布和维护用户端公告内容。</p></div>
+    <div><button id="btnNew" class="primary">创建公告</button></div>
+  </div>
+  <div class="toolbar">
+    <select id="fStatus"><option value="">全部状态</option><option value="DRAFT">草稿</option><option value="PUBLISHED">已发布</option></select>
+    <input id="fKw" placeholder="搜索公告标题" style="width:220px">
+    <button id="btnSearch" class="primary">查询</button><button id="btnReset">重置</button><button id="btnRefresh">刷新</button>
+  </div>
+  <div class="card"><table>
+    <thead><tr><th style="width:56px">ID</th><th style="width:230px">标题</th><th style="width:86px">状态</th><th style="width:200px">属性</th><th>内容预览</th><th style="width:90px">创建人</th><th style="width:130px">更新时间</th><th style="width:210px">操作</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="8" class="empty">加载中...</td></tr></tbody>
+  </table></div>`;
+  const load = async () => {
+    const qs = new URLSearchParams();
+    if (fStatus.value) qs.set('status', fStatus.value);
+    if (fKw.value.trim()) qs.set('keyword', fKw.value.trim());
+    annCache = (await api('/admin/announcements?' + qs)).content;
+    const tb = document.getElementById('rows');
+    if (!annCache.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">暂无公告数据</td></tr>'; return; }
+    tb.innerHTML = annCache.map(a => `<tr class="row">
+      <td class="mono">${a.id}</td>
+      <td><div>${esc(a.title)}</div><div class="muted" style="font-size:11.5px">${fmtTime(a.createdAt)}</div></td>
+      <td><span class="badge ${a.status === 'PUBLISHED' ? 'published' : 'draft'}">${a.status === 'PUBLISHED' ? '已发布' : '草稿'}</span></td>
+      <td>
+        <span class="mini-tag ${a.pinned ? 'on' : ''}">${a.pinned ? '已置顶' : '未置顶'}</span>
+        <span class="mini-tag ${a.popup ? 'on' : ''}">${a.popup ? '弹窗' : '普通'}</span>
+        <span class="mini-tag">${catLabel(a.category)}</span>
+      </td>
+      <td class="muted ellipsis">${esc(a.content.slice(0, 80))}</td>
+      <td>${esc(a.createdByUsername || '-')}</td>
+      <td class="muted mono" style="font-size:12px">${fmtTime(a.updatedAt)}</td>
+      <td>
+        <button data-act="edit" data-id="${a.id}">编辑</button>
+        <button data-act="detail" data-id="${a.id}">详情</button>
+        ${a.status !== 'PUBLISHED' ? `<button data-act="pub" data-id="${a.id}" class="primary">发布</button>` : ''}
+        <button data-act="del" data-id="${a.id}" class="danger">删除</button>
+      </td></tr>`).join('');
+    tb.querySelectorAll('button').forEach(b => b.addEventListener('click', () => rowAction(b.dataset.act, +b.dataset.id, load)));
+  };
+  const catLabel = c => c === 'global' ? '全局' : c === 'software' ? '软件' : '补丁 · ' + c.slice(6);
+  document.getElementById('btnSearch').addEventListener('click', load);
+  document.getElementById('btnRefresh').addEventListener('click', load);
+  document.getElementById('btnReset').addEventListener('click', () => { fStatus.value = ''; fKw.value = ''; load(); });
+  document.getElementById('btnNew').addEventListener('click', () => editModal(null, load));
+  fKw.addEventListener('keyup', e => { if (e.key === 'Enter') load(); });
+  await load();
+}
+async function rowAction(act, id, reload) {
+  const a = annCache.find(x => x.id === id);
+  if (act === 'edit') return editModal(a, reload);
+  if (act === 'detail') return detailModal(a);
+  if (act === 'del') {
+    if (!confirm('确定删除公告 #' + id + '？此操作不可恢复。')) return;
+    await api('/admin/announcements/' + id, { method: 'DELETE' });
+    toast('已删除'); return reload();
+  }
+  if (act === 'pub') {
+    if (!confirm('发布后用户端立即可见（弹窗公告将在用户启动时弹出）。确定发布 #' + id + '？')) return;
+    await api('/admin/announcements/' + id + '/publish', { method: 'POST', body: '{}' });
+    toast('已发布'); return reload();
+  }
+}
+function editModal(a, reload) {
+  const isNew = !a;
+  const bd = modal(`
+    <button class="close">✕</button><h3>${isNew ? '创建公告' : '编辑公告 #' + a.id}</h3>
+    <div class="field"><label>标题</label><input id="eTitle" maxlength="200" value="${esc(a ? a.title : '')}"></div>
+    <div class="field-row">
+      <div class="field"><label>类别</label><select id="eCat">
+        <option value="global">全局（global）</option><option value="software">软件（software）</option>
+      </select></div>
+      <div class="field"><label>图片地址</label>
+        <div class="upload-row"><input id="eImg" maxlength="500" placeholder="可选，填写公告图片 URL" value="${esc(a ? a.imageUrl || '' : '')}">
+        <button id="eUp">上传图片</button></div>
+        <div class="hint">建议先上传图片，成功后自动填入（PNG/JPEG ≤ 2MB）。</div>
+      </div>
+    </div>
+    <div class="field"><label>公告内容</label><textarea id="eContent" rows="8">${esc(a ? a.content : '')}</textarea></div>
+    <div class="check-row">
+      <label><input type="checkbox" id="ePopup" ${a && a.popup ? 'checked' : ''}><span><strong>弹窗公告</strong><br><span class="muted" style="font-size:12px">用户端进入时可按弹窗展示</span></span></label>
+      <label><input type="checkbox" id="ePinned" ${a && a.pinned ? 'checked' : ''}><span><strong>置顶公告</strong><br><span class="muted" style="font-size:12px">列表排序固定优先置顶公告</span></span></label>
+    </div>
+    <div class="actions"><button id="eCancel">取消</button><button id="eSave" class="primary">${isNew ? '创建' : '保存'}</button></div>`);
+  bd.querySelector('.close').addEventListener('click', () => bd.remove());
+  bd.querySelector('#eCancel').addEventListener('click', () => bd.remove());
+  if (a) bd.querySelector('#eCat').value = a.category.startsWith('patch:') ? 'global' : a.category;
+  bd.querySelector('#eUp').addEventListener('click', () => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/png,image/jpeg';
+    inp.addEventListener('change', async () => {
+      if (!inp.files[0]) return;
+      const fd = new FormData(); fd.append('file', inp.files[0]);
+      try { const d = await api('/admin/announcements/upload-image', { method: 'POST', body: fd }); bd.querySelector('#eImg').value = d.imageUrl; toast('图片已上传'); }
+      catch (ex) { toast(ex.message, true); }
+    });
+    inp.click();
+  });
+  bd.querySelector('#eSave').addEventListener('click', async () => {
+    const payload = {
+      title: bd.querySelector('#eTitle').value.trim(),
+      content: bd.querySelector('#eContent').value.trim(),
+      imageUrl: bd.querySelector('#eImg').value.trim(),
+      popup: bd.querySelector('#ePopup').checked,
+      pinned: bd.querySelector('#ePinned').checked,
+      category: bd.querySelector('#eCat').value,
+    };
+    if (!payload.title || !payload.content) return toast('标题与内容不能为空', true);
+    try {
+      if (isNew) await api('/admin/announcements', { method: 'POST', body: JSON.stringify(payload) });
+      else await api('/admin/announcements/' + a.id, { method: 'PUT', body: JSON.stringify(payload) });
+      bd.remove(); toast(isNew ? '已创建（草稿）' : '已保存'); reload();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
+function detailModal(a) {
+  const bd = modal(`
+    <button class="close">✕</button><h3>公告详情 #${a.id}</h3>
+    <div class="kv">
+      <span class="k">标题</span><span>${esc(a.title)}</span>
+      <span class="k">状态</span><span><span class="badge ${a.status === 'PUBLISHED' ? 'published' : 'draft'}">${a.status === 'PUBLISHED' ? '已发布' : '草稿'}</span></span>
+      <span class="k">类别</span><span>${a.category === 'global' ? '全局' : a.category === 'software' ? '软件' : esc(a.category)}</span>
+      <span class="k">弹窗 / 置顶</span><span>${a.popup ? '是' : '否'} / ${a.pinned ? '是' : '否'}</span>
+      <span class="k">创建人</span><span>${esc(a.createdByUsername || '-')}</span>
+      <span class="k">创建 / 更新</span><span class="mono" style="font-size:12px">${fmtTime(a.createdAt)} / ${fmtTime(a.updatedAt)}</span>
+      <span class="k">图片地址</span><span class="mono" style="font-size:12px;word-break:break-all">${esc(a.imageUrl || '-')}</span>
+    </div>
+    ${a.imageUrl ? `<img src="${esc(a.imageUrl)}" style="max-width:100%;border-radius:9px;margin-bottom:14px" onerror="this.style.display='none'">` : ''}
+    <div class="kv" style="grid-template-columns:110px 1fr"><span class="k">内容</span><span style="white-space:pre-wrap">${esc(a.content)}</span></div>`);
+  bd.querySelector('.close').addEventListener('click', () => bd.remove());
+}
+
+// ─────────── 问题反馈 ───────────
+async function renderFeedback() {
+  const m = document.getElementById('main');
+  m.innerHTML = `
+  <div class="page-head">
+    <div><h2>用户反馈</h2><p>查看和处理用户提交的反馈信息（含日志与截图）。</p></div>
+    <div><button id="fbRefresh">刷新</button></div>
+  </div>
+  <div class="toolbar">
+    <select id="fbStatus"><option value="">全部状态</option><option value="pending">待处理</option><option value="processing">处理中</option><option value="completed">已完成</option></select>
+    <span class="grow"></span><span class="muted" style="font-size:12.5px">点击行查看详情并标记已读</span>
+  </div>
+  <div class="card"><table>
+    <thead><tr><th style="width:190px">反馈编号</th><th style="width:86px">状态</th><th style="width:110px">版本</th><th style="width:200px">GPU</th><th>问题描述</th><th style="width:56px">附</th><th style="width:130px">提交时间</th></tr></thead>
+    <tbody id="fbRows"><tr><td colspan="7" class="empty">加载中...</td></tr></tbody>
+  </table></div>`;
+  const load = async () => {
+    const qs = new URLSearchParams({ page: '0', size: '50' });
+    if (fbStatus.value) qs.set('status', fbStatus.value);
+    const d = await api('/admin/feedback?' + qs);
+    refreshUnread();
+    const tb = document.getElementById('fbRows');
+    if (!d.content.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">暂无反馈</td></tr>'; return; }
+    tb.innerHTML = d.content.map(f => `<tr class="row" data-id="${f.id}" style="cursor:pointer">
+      <td class="mono">${f.read ? '' : '<span class="dot"></span>'}${f.id}</td>
+      <td><span class="badge ${f.status}">${({ pending: '待处理', processing: '处理中', completed: '已完成' })[f.status] || f.status}</span></td>
+      <td class="mono" style="font-size:12px">${esc(f.version || '-')}</td>
+      <td class="ellipsis" style="max-width:200px">${esc(f.gpu || '-')}</td>
+      <td class="ellipsis">${esc(f.description || '-')}</td>
+      <td class="muted" style="font-size:12px">${f.logCount}志/${f.shotCount}图</td>
+      <td class="muted mono" style="font-size:12px">${fmtTime(f.receivedAt)}</td></tr>`).join('');
+    tb.querySelectorAll('tr').forEach(tr => tr.addEventListener('click', () => detailFeedback(tr.dataset.id, load)));
+  };
+  document.getElementById('fbRefresh').addEventListener('click', load);
+  fbStatus.addEventListener('change', load);
+  await load();
+}
+async function detailFeedback(id, reload) {
+  const r = await api('/admin/feedback/' + id);
+  refreshUnread();
+  const games = (r.games || []).map(g => `<span class="mini-tag">${esc(g.name)}：${esc(g.state)}</span>`).join(' ') || '-';
+  const bd = modal(`
+    <button class="close">✕</button><h3>反馈详情 ${esc(r.id || id)}</h3>
+    <div class="kv">
+      <span class="k">程序版本</span><span class="mono" style="font-size:12px">${esc(r.version || '-')}</span>
+      <span class="k">操作系统</span><span>${esc(r.os || '-')}</span>
+      <span class="k">运行时</span><span>${esc(r.runtime || '-')}</span>
+      <span class="k">显卡 / 驱动</span><span>${esc((r.gpu && (r.gpu.name + '  |  驱动 ' + (r.gpu.driver || '-') + '  |  ' + (r.gpu.vram || ''))) || '-')}</span>
+      <span class="k">游戏</span><span>${games}</span>
+      <span class="k">提交时间</span><span class="mono" style="font-size:12px">${fmtTime(r.receivedAt)}</span>
+      <span class="k">IP</span><span class="mono" style="font-size:12px">${esc(r.ip || '-')}</span>
+    </div>
+    <div class="field"><label>问题描述</label><div class="log-block" style="font-family:inherit;white-space:pre-wrap">${esc(r.description || '-')}</div></div>
+    ${r.shotsData && r.shotsData.length ? `<div class="field"><label>截图（${r.shotsData.length}）</label><div class="shots">${r.shotsData.map(s => `<img src="${s.dataUrl}" title="${esc(s.name)}">`).join('')}</div></div>` : ''}
+    ${r.logsFull && r.logsFull.length ? r.logsFull.map(l => `<div class="field"><label>日志：${esc(l.name)}</label><div class="log-block">${esc(l.content.length > 8000 ? l.content.slice(0, 8000) + '\n…（过长已截断）' : l.content)}</div></div>`).join('') : ''}
+    <div class="field"><label>处理状态与备注</label>
+      <div class="status-pick" id="stPick">
+        <button data-s="pending" class="${r.status === 'pending' ? 'active' : ''}">待处理</button>
+        <button data-s="processing" class="${r.status === 'processing' ? 'active' : ''}">处理中</button>
+        <button data-s="completed" class="${r.status === 'completed' ? 'active' : ''}">已完成</button>
+      </div>
+      <input id="stRemark" placeholder="处理备注（可选）" value="${esc(r.remark || '')}">
+    </div>
+    <div class="actions"><button id="stCancel">关闭</button><button id="stSave" class="primary">保存状态</button></div>`);
+  let status = r.status || 'pending';
+  bd.querySelectorAll('#stPick button').forEach(b => b.addEventListener('click', () => {
+    status = b.dataset.s;
+    bd.querySelectorAll('#stPick button').forEach(x => x.classList.toggle('active', x === b));
+  }));
+  bd.querySelector('.close').addEventListener('click', () => bd.remove());
+  bd.querySelector('#stCancel').addEventListener('click', () => bd.remove());
+  bd.querySelector('#stSave').addEventListener('click', async () => {
+    try {
+      await api('/admin/feedback/' + id + '/status', { method: 'PUT', body: JSON.stringify({ status, remark: bd.querySelector('#stRemark').value }) });
+      bd.remove(); toast('已保存'); reload();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
+
+// ─────────── 赞助码 ───────────
+async function renderSponsor() {
+  const m = document.getElementById('main');
+  let info = '<span class="muted">加载中…</span>';
+  try {
+    const resp = await fetch(API + '/assets/sponsor-qr');
+    if (resp.ok) {
+      const b = await resp.json();
+      const mk = b.marker || {};
+      info = `<span class="badge published">已配置</span>　上传于 ${esc(mk.uploadedAt || '-')}　<span class="muted">sha256 ${esc((b.sha256 || '').slice(0, 16))}…</span>`;
+    } else if (resp.status === 404) info = '<span class="badge draft">未配置</span>';
+    else info = '<span class="badge draft">查询失败（HTTP ' + resp.status + '）</span>';
+  } catch (e) { info = '<span class="badge draft">查询失败（网络）</span>'; }
+
+  m.innerHTML = `
+  <div class="page-head">
+    <div><h2>赞助码管理</h2><p>替换客户端"赞助"页展示的微信收款码（AES-256-GCM 加密下发）。</p></div>
+  </div>
+  <div class="card" style="padding:24px 26px;max-width:640px">
+    <div class="kv" style="grid-template-columns:90px 1fr;margin-bottom:20px">
+      <span class="k">当前状态</span><span id="qrState">${info}</span>
+    </div>
+    <div class="field"><label>上传新收款码（PNG / JPEG，≤ 2MB）</label>
+      <div class="upload-row">
+        <input type="file" id="qrFile" accept="image/png,image/jpeg">
+        <button id="qrUp" class="primary">上传并加密</button>
+      </div>
+      <div class="hint">上传后立即重新加密并生效；客户端每次进入赞助页都会重新拉取。服务器需已安装 pycryptodome。</div>
+    </div>
+  </div>`;
+  m.querySelector('#qrUp').addEventListener('click', async () => {
+    const f = m.querySelector('#qrFile').files[0];
+    if (!f) return toast('请先选择图片', true);
+    const fd = new FormData(); fd.append('file', f);
+    try { await api('/admin/assets/sponsor-qr', { method: 'POST', body: fd }); toast('赞助码已更新'); renderSponsor(); }
+    catch (ex) { toast(ex.message, true); }
+  });
+}
+
+// ─────────── 启动 ───────────
+if (token) renderShell(); else renderLogin();
+if (token) switchTab('announcements');
+</script>
+</body>
+</html>

@@ -482,7 +482,8 @@ public static class Theme
             Controls.Add(_fill);
             rtb.VScroll += (_, _) => UpdateThumb();
             rtb.TextChanged += (_, _) => UpdateThumb();
-            rtb.HandleCreated += (_, _) => BeginInvoke(new Action(UpdateThumb));
+            // 注意：用 rtb 的 BeginInvoke（此时 ScrollIndicator 自身句柄还未创建，对它调用会抛异常）
+            rtb.HandleCreated += (_, _) => rtb.BeginInvoke(new Action(UpdateThumb));
         }
 
         private void UpdateThumb()

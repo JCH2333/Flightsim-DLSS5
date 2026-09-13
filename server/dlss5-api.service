@@ -1,0 +1,17 @@
+# DLSS5 站点 API 服务（反馈 + 公告 + 赞助码 + 管理端）
+# 安装: cp dlss5-api.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now dlss5-api
+# 旧版 feedback.service 一并停用: systemctl disable --now feedback.service
+[Unit]
+Description=DLSS5 site API (feedback / announcements / sponsor QR / admin)
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /srv/repo/dlss5/server/dlss5_api.py 8430
+Environment=FEEDBACK_DIR=/var/lib/dlss5-feedback
+Environment=CMS_DIR=/var/lib/dlss5-cms
+Environment=ASSET_WEB_DIR=/srv/repo/dlss5/assets/announcements
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
