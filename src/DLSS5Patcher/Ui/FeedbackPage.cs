@@ -41,48 +41,68 @@ public sealed class FeedbackPage : UserControl
 
         Controls.Add(Theme.MakePageHeader(L.S("FEEDBACK", "FEEDBACK"), L.S("问题反馈", "Feedback")));
 
+        // 紧凑单屏布局：总高 764 ≤ 页面 800，无需滚动（窗口固定尺寸且不可滚动）
         BuildEnvCard(100);
-        BuildGamesCard(272);
-        BuildLogsCard(338);
-        BuildDescCard(496);
-        BuildShotsCard(664);
-        BuildSubmitRow(766);
+        BuildGamesCard(222);
+        BuildLogsCard(288);
+        BuildDescCard(446);
+        BuildShotsCard(616);
+        BuildSubmitRow(724);
     }
 
     // ───────────────────────────── 环境信息 ─────────────────────────────
 
     private void BuildEnvCard(int y)
     {
-        var card = Theme.MakeCard(790, 172);
+        var card = Theme.MakeCard(790, 112);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(L.S("环境信息（自动识别）", "Environment (auto-detected)"), Theme.Text, 9.75f, bold: true);
         head.Location = new Point(16, 8);
         card.Controls.Add(head);
 
-        AddEnvRow(card, L.S("程序版本：", "App version:"), _lblApp, 34);
-        AddEnvRow(card, L.S("操作系统：", "OS:"), _lblOs, 58);
-        AddEnvRow(card, L.S("显卡 / 驱动 / 显存：", "GPU / driver / VRAM:"), _lblGpu, 82);
-        AddEnvRow(card, "MSFS 2024:", _lblG24, 108);
-        AddEnvRow(card, "MSFS 2020:", _lblG20, 130);
-        AddEnvRow(card, "X-Plane 12:", _lblGxp, 152);
+        // 双列：左=版本/系统，右=操作系统列；GPU 独占整行，游戏状态一行三项
+        AddEnvRow(card, L.S("程序版本：", "App version:"), _lblApp, 34, capX: 16, valX: 104, valW: 312);
+        AddEnvRow(card, L.S("操作系统：", "OS:"), _lblOs, 34, capX: 440, valX: 508, valW: 266);
+        AddEnvRow(card, L.S("显卡 / 驱动 / 显存：", "GPU / driver / VRAM:"), _lblGpu, 58, capX: 16, valX: 150, valW: 624);
+
+        AddGameStateLabel(card, _lblG24, 16, 252);
+        AddGameStateLabel(card, _lblG20, 290, 236);
+        AddGameStateLabel(card, _lblGxp, 540, 234);
 
         Controls.Add(card);
     }
 
-    private static void AddEnvRow(Panel card, string caption, Label value, int y)
+    private static void AddEnvRow(Panel card, string caption, Label value, int y, int capX, int valX, int valW)
     {
         var lbl = Theme.MakeLabel(caption, Theme.TextSecondary, 9f);
-        lbl.Location = new Point(16, y);
+        lbl.Location = new Point(capX, y);
         card.Controls.Add(lbl);
 
         value.AutoSize = false;
-        value.Size = new Size(660, 18);
-        value.Location = new Point(160, y + 1);
+        value.Size = new Size(valW, 18);
+        value.Location = new Point(valX, y + 1);
         value.ForeColor = Theme.Text;
         value.Font = new Font("Microsoft YaHei UI", 8.5f);
         value.AutoEllipsis = true;
         card.Controls.Add(value);
+    }
+
+    private static void AddGameStateLabel(Panel card, Label lbl, int x, int w)
+    {
+        lbl.AutoSize = false;
+        lbl.Size = new Size(w, 18);
+        lbl.Location = new Point(x, 84);
+        lbl.ForeColor = Theme.TextMuted;
+        lbl.Font = new Font("Microsoft YaHei UI", 8.5f);
+        lbl.AutoEllipsis = true;
+        card.Controls.Add(lbl);
+    }
+
+    private static void SetGameState(Label lbl, string name, GameInstall? g)
+    {
+        lbl.Text = g != null ? $"{name}   已检测 · {g.Source}" : $"{name}   未检测到";
+        lbl.ForeColor = g != null ? Theme.Signal : Theme.TextMuted;
     }
 
     // ───────────────────────────── 游戏 / 日志 / 描述 / 截图 ─────────────────────────────
@@ -116,7 +136,7 @@ public sealed class FeedbackPage : UserControl
 
     private void BuildLogsCard(int y)
     {
-        var card = Theme.MakeCard(790, 158);
+        var card = Theme.MakeCard(790, 148);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
@@ -130,7 +150,7 @@ public sealed class FeedbackPage : UserControl
         _lstLogs.ForeColor = Theme.TextSecondary;
         _lstLogs.BorderStyle = BorderStyle.FixedSingle;
         _lstLogs.Font = new Font(Theme.FontUi, 8.5f);
-        _lstLogs.Size = new Size(758, 112);
+        _lstLogs.Size = new Size(758, 108);
         _lstLogs.Location = new Point(16, 32);
         _lstLogs.IntegralHeight = false;
         // 自绘条目：绿勾选框替代系统蓝框
@@ -168,7 +188,7 @@ public sealed class FeedbackPage : UserControl
 
     private void BuildDescCard(int y)
     {
-        var card = Theme.MakeCard(790, 170);
+        var card = Theme.MakeCard(790, 160);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
@@ -180,7 +200,7 @@ public sealed class FeedbackPage : UserControl
         _lblCount.ForeColor = Theme.TextMuted;
         _lblCount.Font = new Font("Microsoft YaHei UI", 8f);
         _lblCount.AutoSize = true;
-        _lblCount.Location = new Point(740, 10);
+        _lblCount.Location = new Point(726, 10);
         card.Controls.Add(_lblCount);
 
         _txtDesc.Multiline = true;
@@ -190,18 +210,18 @@ public sealed class FeedbackPage : UserControl
         _txtDesc.ForeColor = Theme.Text;
         _txtDesc.BorderStyle = BorderStyle.FixedSingle;
         _txtDesc.Font = new Font("Microsoft YaHei UI", 9f);
-        _txtDesc.Size = new Size(758, 122);
+        _txtDesc.Size = new Size(758, 118);
         _txtDesc.Location = new Point(16, 32);
         _txtDesc.TextChanged += (_, _) => _lblCount.Text = $"{_txtDesc.Text.Length}/{MaxDescChars}";
         card.Controls.Add(_txtDesc);
-        Theme.AttachScrollIndicator(_txtDesc, card, rightInset: 16, topInset: 34, height: 118);
+        Theme.AttachScrollIndicator(_txtDesc, card, rightInset: 16, topInset: 34, height: 114);
 
         Controls.Add(card);
     }
 
     private void BuildShotsCard(int y)
     {
-        var card = Theme.MakeCard(790, 102);
+        var card = Theme.MakeCard(790, 94);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
@@ -213,13 +233,13 @@ public sealed class FeedbackPage : UserControl
 
         var btnAdd = Theme.MakeButton(L.S("添加截图...", "Add screenshots..."));
         btnAdd.Size = new Size(120, 28);
-        btnAdd.Location = new Point(16, 34);
+        btnAdd.Location = new Point(16, 32);
         btnAdd.Click += (_, _) => AddShots();
         card.Controls.Add(btnAdd);
 
         var btnClear = Theme.MakeButton(L.S("清除", "Clear"));
         btnClear.Size = new Size(76, 28);
-        btnClear.Location = new Point(144, 34);
+        btnClear.Location = new Point(144, 32);
         btnClear.Click += (_, _) => { _shots.Clear(); RefreshShots(); };
         card.Controls.Add(btnClear);
 
@@ -227,8 +247,8 @@ public sealed class FeedbackPage : UserControl
         _lstShots.ForeColor = Theme.TextSecondary;
         _lstShots.BorderStyle = BorderStyle.FixedSingle;
         _lstShots.Font = new Font("Microsoft YaHei UI", 8.5f);
-        _lstShots.Size = new Size(596, 58);
-        _lstShots.Location = new Point(232, 34);
+        _lstShots.Size = new Size(542, 56);
+        _lstShots.Location = new Point(232, 32);
         _lstShots.IntegralHeight = false;
         card.Controls.Add(_lstShots);
 
@@ -267,9 +287,9 @@ public sealed class FeedbackPage : UserControl
         _lblOs.Text = OsText();
         _lblGpu.Text = gpu.IsNvidia ? $"{gpu.Name}   |   驱动 {gpu.Driver}   |   显存 {gpu.VramText}   |   {gpu.GenerationCn}"
                                     : L.S("未检测到 NVIDIA 显卡", "No NVIDIA GPU detected");
-        _lblG24.Text = GameText(g24);
-        _lblG20.Text = GameText(g20);
-        _lblGxp.Text = GameText(xp);
+        SetGameState(_lblG24, "MSFS 2024", g24);
+        SetGameState(_lblG20, "MSFS 2020", g20);
+        SetGameState(_lblGxp, "X-Plane 12", xp);
 
         RescanLogs();
     }
@@ -286,9 +306,6 @@ public sealed class FeedbackPage : UserControl
         catch { }
         return $"Windows {Environment.OSVersion.Version} ({(Environment.Is64BitOperatingSystem ? "x64" : "x86")})";
     }
-
-    private static string GameText(GameInstall? g) =>
-        g != null ? $"{g.GameDir}   [{g.Source}]" : L.S("未检测到", "not detected");
 
     private sealed record LogItem(string Label, string Path, long Size)
     {
