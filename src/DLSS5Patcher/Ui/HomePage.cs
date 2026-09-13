@@ -20,24 +20,23 @@ public sealed class HomePage : Theme.AmbientPage
     public const int CardMsfs2024 = 0;
     public const int CardMsfs2020 = 1;
     public const int CardXp12 = 2;
+    public const int CardXp11 = 3;
 
     private const int PadX = 36;
     private const int ContentW = 790;   // 862 - 36×2
-    private const int CardH = 140;
-    private const int CardGap = 12;
+    private const int CardH = 132;
+    private const int CardGap = 10;
 
     private readonly Label _lblGpu = new();
     private readonly Label _lblChecks = new();
-    private readonly Label[] _cardState = new Label[3];
-    private readonly Label[] _cardPath = new Label[3];
-    private readonly Theme.GlassButton[] _btnInstall = new Theme.GlassButton[3];
-    private readonly Theme.GlassButton[] _btnUninstall = new Theme.GlassButton[3];
+    private readonly Label[] _cardState = new Label[4];
+    private readonly Label[] _cardPath = new Label[4];
+    private readonly Theme.GlassButton[] _btnInstall = new Theme.GlassButton[4];
+    private readonly Theme.GlassButton[] _btnUninstall = new Theme.GlassButton[4];
     private readonly List<Theme.GlassButton> _allButtons = new();
-    private readonly Panel[] _progressTrack = new Panel[3];
-    private readonly Label[] _progressFill = new Label[3];
-    private readonly Label[] _progressLabels = new Label[3];
-    private readonly Label _lblProgress = new();
-    private readonly RichTextBox _log = new();
+    private readonly Panel[] _progressTrack = new Panel[4];
+    private readonly Label[] _progressFill = new Label[4];
+    private readonly Label[] _progressLabels = new Label[4];
     private Theme.GlassButton _btnRefresh = new();
 
     public HomePage()
@@ -82,42 +81,13 @@ public sealed class HomePage : Theme.AmbientPage
             L.S("Beta · 实验性", "BETA · Experimental"), "warning", cardY + (CardH + CardGap));
         BuildCard(CardXp12, "X-Plane 12",
             L.S("DLSS5-Feeder · Vulkan", "DLSS5-Feeder · Vulkan"), "muted", cardY + (CardH + CardGap) * 2);
-
-        // 运行日志（内衬深色面板）
-        const int logTop = 690;
-        var logHead = Theme.MakeLabel(L.S("运行日志", "Session log"), Theme.TextMuted, 8.5f, bold: true);
-        logHead.Location = new Point(PadX + 2, logTop - 20);
-        Controls.Add(logHead);
-
-        _lblProgress.AutoSize = true;
-        _lblProgress.ForeColor = Theme.TextMuted;
-        _lblProgress.Font = new Font(Theme.FontUi, 8f);
-        _lblProgress.Location = new Point(110, logTop - 22);
-        _lblProgress.Visible = false;
-        Controls.Add(_lblProgress);
-
-        var logPanel = new Theme.GlassCard
-        {
-            Size = new Size(ContentW, 800 - logTop - 24),
-            Location = new Point(PadX, logTop),
-            Radius = 10,
-            Fill = Theme.SurfaceInset,
-            BorderColor = Theme.Border,
-        };
-        _log.Dock = DockStyle.Fill;
-        _log.BackColor = Theme.SurfaceInset;
-        _log.ForeColor = Theme.TextSecondary;
-        _log.BorderStyle = BorderStyle.None;
-        _log.ReadOnly = true;
-        _log.Font = new Font("Consolas", 8.75f);
-        _log.ScrollBars = RichTextBoxScrollBars.Vertical;
-        logPanel.Controls.Add(_log);
-        Controls.Add(logPanel);
+        BuildCard(CardXp11, "X-Plane 11",
+            L.S("开发中", "In development"), "muted", cardY + (CardH + CardGap) * 3, dev: true);
     }
 
     private readonly Theme.GlassCard _gpuBar;
 
-    private void BuildCard(int idx, string title, string tag, string tone, int y)
+    private void BuildCard(int idx, string title, string tag, string tone, int y, bool dev = false)
     {
         var card = new Theme.GlassCard { Size = new Size(ContentW, CardH), Location = new Point(PadX, y) };
 
@@ -140,6 +110,12 @@ public sealed class HomePage : Theme.AmbientPage
             BackColor = Color.Transparent,
         };
         _cardState[idx] = lblState;
+        if (dev)
+        {
+            lblState.Text = L.S("开发中 —— 敬请期待", "In development — stay tuned");
+            lblState.ForeColor = Theme.TextMuted;
+            lblState.Font = new Font(Theme.FontUi, 9f);
+        }
         card.Controls.Add(lblState);
 
         var lblPath = new Label
@@ -201,6 +177,18 @@ public sealed class HomePage : Theme.AmbientPage
         };
         _progressLabels[idx] = lblTrack;
         strip.Controls.Add(lblTrack);
+
+        if (dev)
+        {
+            var btnDev = Theme.MakeButton(L.S("开发中", "In development"), height: 30);
+            btnDev.Size = new Size(124, 30);
+            btnDev.Location = new Point(ContentW - 124 - 16, 6);
+            btnDev.Enabled = false;
+            _allButtons.Add(btnDev);
+            strip.Controls.Add(btnDev);
+            Controls.Add(card);
+            return;
+        }
 
         var btnInstall = Theme.MakeButton(L.S("一键安装", "Install"), primary: true, height: 30);
         btnInstall.Size = new Size(124, 30);
@@ -277,15 +265,12 @@ public sealed class HomePage : Theme.AmbientPage
                 b.Tag = b.Enabled;
                 b.Enabled = false;
             }
-            if (status != null) _lblProgress.Visible = true;
-            if (status != null) _lblProgress.Text = status;
         }
         else
         {
             _btnRefresh.Enabled = true;
             foreach (var track in _progressTrack) track.Visible = false;
             foreach (var lbl in _progressLabels) lbl.Visible = false;
-            _lblProgress.Visible = false;
         }
     }
 
@@ -295,24 +280,12 @@ public sealed class HomePage : Theme.AmbientPage
         var pct = (int)Math.Clamp(received * 100 / Math.Max(total, 1), 0, 100);
         var text = L.S($"安装进度: {received / 1048576} / {total / 1048576} MB",
                        $"Progress: {received / 1048576} / {total / 1048576} MB");
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 4; i++)
         {
             _progressTrack[i].Visible = true;
             _progressLabels[i].Visible = true;
             _progressFill[i].Width = _progressTrack[i].Width * pct / 100;
             _progressLabels[i].Text = text;
         }
-        _lblProgress.Visible = true;
-        _lblProgress.Text = text;
-    }
-
-    public void Log(string s)
-    {
-        if (InvokeRequired) { BeginInvoke(() => Log(s)); return; }
-        _log.SelectionStart = _log.TextLength;
-        _log.SelectionColor = Theme.TextSecondary;
-        _log.AppendText($"[{DateTime.Now:HH:mm:ss}] {s}\r\n");
-        _log.SelectionStart = _log.TextLength;
-        _log.ScrollToCaret();
     }
 }

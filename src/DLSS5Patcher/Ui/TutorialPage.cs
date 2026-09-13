@@ -28,8 +28,9 @@ public sealed class TutorialPage : Theme.AmbientPage
         _rtb.BorderStyle = BorderStyle.None;
         _rtb.ReadOnly = true;
         _rtb.Font = new Font(Theme.FontUi, 9.25f);
-        _rtb.ScrollBars = RichTextBoxScrollBars.Vertical;
+        _rtb.ScrollBars = RichTextBoxScrollBars.None;
         panel.Controls.Add(_rtb);
+        Theme.AttachScrollIndicator(_rtb, panel, rightInset: 12, topInset: 14, height: panel.Height - 28);
         Controls.Add(panel);
 
         BuildContent();

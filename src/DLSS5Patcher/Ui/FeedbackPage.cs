@@ -24,11 +24,11 @@ public sealed class FeedbackPage : UserControl
     private readonly Label _lblG24 = new();
     private readonly Label _lblG20 = new();
     private readonly Label _lblGxp = new();
-    private readonly CheckBox _ck24 = new();
-    private readonly CheckBox _ck20 = new();
-    private readonly CheckBox _ckxp = new();
+    private readonly Theme.GlassCheck _ck24 = new();
+    private readonly Theme.GlassCheck _ck20 = new();
+    private readonly Theme.GlassCheck _ckxp = new();
     private readonly CheckedListBox _lstLogs = new();
-    private readonly TextBox _txtDesc = new();
+    private readonly RichTextBox _txtDesc = new();
     private readonly ListBox _lstShots = new();
     private Theme.GlassButton _btnSubmit = new();
     private readonly Label _lblStatus = new();
@@ -98,19 +98,18 @@ public sealed class FeedbackPage : UserControl
         card.Controls.Add(head);
 
         BuildCheck(_ck24, "MSFS 2024", 16, card);
-        BuildCheck(_ck20, "MSFS 2020 (Beta)", 160, card);
-        BuildCheck(_ckxp, "X-Plane 12", 330, card);
+        BuildCheck(_ck20, "MSFS 2020 (Beta)", 270, card);
+        BuildCheck(_ckxp, "X-Plane 12", 560, card);
 
         Controls.Add(card);
     }
 
-    private void BuildCheck(CheckBox ck, string text, int x, Panel card)
+    private void BuildCheck(Theme.GlassCheck ck, string text, int x, Panel card)
     {
         ck.Text = text;
-        ck.AutoSize = true;
-        ck.Location = new Point(x, 30);
+        ck.Size = new Size(TextRenderer.MeasureText(text, ck.Font).Width + 34, 24);
+        ck.Location = new Point(x, 26);
         ck.ForeColor = Theme.TextSecondary;
-        ck.BackColor = Theme.Surface;
         ck.CheckedChanged += (_, _) => RescanLogs();
         card.Controls.Add(ck);
     }
@@ -130,10 +129,38 @@ public sealed class FeedbackPage : UserControl
         _lstLogs.BackColor = Theme.SurfaceRaised;
         _lstLogs.ForeColor = Theme.TextSecondary;
         _lstLogs.BorderStyle = BorderStyle.FixedSingle;
-        _lstLogs.Font = new Font("Microsoft YaHei UI", 8.5f);
+        _lstLogs.Font = new Font(Theme.FontUi, 8.5f);
         _lstLogs.Size = new Size(758, 112);
         _lstLogs.Location = new Point(16, 32);
         _lstLogs.IntegralHeight = false;
+        // 自绘条目：绿勾选框替代系统蓝框
+        _lstLogs.DrawMode = DrawMode.OwnerDrawFixed;
+        _lstLogs.ItemHeight = 22;
+        _lstLogs.DrawItem += (s, e) =>
+        {
+            if (e.Index < 0) return;
+            e.DrawBackground();
+            var text = _lstLogs.Items[e.Index].ToString() ?? "";
+            var isChecked = _lstLogs.GetItemChecked(e.Index);
+            var box = new Rectangle(e.Bounds.X + 2, e.Bounds.Y + (e.Bounds.Height - 14) / 2, 14, 14);
+            using (var path = Theme.RoundedPath(box, 4))
+            {
+                using var fill = new SolidBrush(isChecked ? Theme.SignalBg : Theme.Surface);
+                e.Graphics.FillPath(fill, path);
+                using var pen = new Pen(isChecked ? Theme.SignalBorder : Theme.GlassBorder);
+                e.Graphics.DrawPath(pen, path);
+            }
+            if (isChecked)
+            {
+                using var pen = new Pen(Theme.Signal, 1.6f);
+                e.Graphics.DrawLine(pen, box.X + 3, box.Y + 7, box.X + 6, box.Y + 10);
+                e.Graphics.DrawLine(pen, box.X + 6, box.Y + 10, box.X + 11, box.Y + 4);
+            }
+            TextRenderer.DrawText(e.Graphics, text, e.Font,
+                new Rectangle(e.Bounds.X + 22, e.Bounds.Y, e.Bounds.Width - 24, e.Bounds.Height),
+                Theme.TextSecondary,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+        };
         card.Controls.Add(_lstLogs);
 
         Controls.Add(card);
@@ -157,7 +184,7 @@ public sealed class FeedbackPage : UserControl
         card.Controls.Add(_lblCount);
 
         _txtDesc.Multiline = true;
-        _txtDesc.ScrollBars = ScrollBars.Vertical;
+        _txtDesc.ScrollBars = RichTextBoxScrollBars.None;
         _txtDesc.MaxLength = MaxDescChars;
         _txtDesc.BackColor = Theme.SurfaceRaised;
         _txtDesc.ForeColor = Theme.Text;
@@ -167,6 +194,7 @@ public sealed class FeedbackPage : UserControl
         _txtDesc.Location = new Point(16, 32);
         _txtDesc.TextChanged += (_, _) => _lblCount.Text = $"{_txtDesc.Text.Length}/{MaxDescChars}";
         card.Controls.Add(_txtDesc);
+        Theme.AttachScrollIndicator(_txtDesc, card, rightInset: 16, topInset: 34, height: 118);
 
         Controls.Add(card);
     }

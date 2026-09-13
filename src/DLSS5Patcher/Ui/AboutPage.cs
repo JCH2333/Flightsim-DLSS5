@@ -17,7 +17,6 @@ public sealed class AboutPage : Theme.AmbientPage
     private readonly Label _lblMsfsDir = new();
     private readonly Label _lblMsfs2020Dir = new();
     private readonly Label _lblXp12Dir = new();
-    private readonly Label _lblKitDir = new();
     private bool _langReady;   // 防止初始 SelectedIndex 触发切换逻辑
 
     public event Action? MsfsBrowseRequested;
@@ -37,9 +36,9 @@ public sealed class AboutPage : Theme.AmbientPage
 
         BuildLanguageBand(100);
         BuildManualSetup(218);
-        BuildDeclarationBand(492);
-        BuildQqCard(572);
-        BuildAboutBand(680);
+        BuildDeclarationBand(506);
+        BuildQqCard(586);
+        BuildAboutBand(694);
     }
 
     // ───────────────────────────── 语言 + 安装选项 ─────────────────────────────
@@ -64,6 +63,7 @@ public sealed class AboutPage : Theme.AmbientPage
         _cboLang.Size = new Size(132, 26);
         _cboLang.BackColor = Theme.SurfaceRaised;
         _cboLang.ForeColor = Theme.Text;
+        Theme.StyleCombo(_cboLang);
         _cboLang.SelectedIndexChanged += (_, _) =>
         {
             if (!_langReady) return;
@@ -95,6 +95,7 @@ public sealed class AboutPage : Theme.AmbientPage
         _cboScale.Size = new Size(80, 26);
         _cboScale.BackColor = Theme.SurfaceRaised;
         _cboScale.ForeColor = Theme.Text;
+        Theme.StyleCombo(_cboScale);
         card.Controls.Add(_cboScale);
 
         var hint = Theme.MakeLabel(
@@ -129,11 +130,11 @@ public sealed class AboutPage : Theme.AmbientPage
             "X-Plane 12", L.S("游戏主程序 X-Plane.exe", "Executable X-Plane.exe"),
             _lblXp12Dir, L.S("指定程序...", "Pick exe..."), () => XpBrowseRequested?.Invoke());
         BuildTargetCard(gx + cw + 10, gy + ch + 10, cw, ch,
-            L.S("XP12 组件包（可选）", "XP12 kit (optional)"), L.S("留空 = 自动下载官方组件包", "empty = auto-download the official kit"),
-            _lblKitDir, L.S("指定目录...", "Browse..."), () => XpPickKitRequested?.Invoke());
+            "X-Plane 11", L.S("游戏主程序 X-Plane.exe", "Executable X-Plane.exe"),
+            null, L.S("开发中", "In development"), null, dev: true);
     }
 
-    private void BuildTargetCard(int x, int y, int w, int h, string title, string hint, Label valueLabel, string buttonText, Action browse)
+    private void BuildTargetCard(int x, int y, int w, int h, string title, string hint, Label? valueLabel, string buttonText, Action? browse, bool dev = false)
     {
         var card = Theme.MakeCard(w, h);
         card.Location = new Point(x, y);
@@ -146,30 +147,39 @@ public sealed class AboutPage : Theme.AmbientPage
         sub.Location = new Point(14, 30);
         card.Controls.Add(sub);
 
-        valueLabel.AutoSize = false;
-        valueLabel.Size = new Size(w - 28, 30);
-        valueLabel.Location = new Point(14, 52);
-        valueLabel.ForeColor = Theme.TextSecondary;
-        valueLabel.Font = new Font("Consolas", 8.25f);
-        valueLabel.AutoEllipsis = true;
-        card.Controls.Add(valueLabel);
+        if (valueLabel != null)
+        {
+            valueLabel.AutoSize = false;
+            valueLabel.Size = new Size(w - 28, 30);
+            valueLabel.Location = new Point(14, 52);
+            valueLabel.ForeColor = Theme.TextSecondary;
+            valueLabel.Font = new Font("Consolas", 8.25f);
+            valueLabel.AutoEllipsis = true;
+            card.Controls.Add(valueLabel);
+        }
+        else if (dev)
+        {
+            var devLabel = Theme.MakeLabel(L.S("开发中 —— 敬请期待", "In development — stay tuned"), Theme.TextMuted, 8.5f);
+            devLabel.Location = new Point(14, 56);
+            card.Controls.Add(devLabel);
+        }
 
         var btn = Theme.MakeButton(buttonText, height: 30);
         btn.Size = new Size(108, 30);
         btn.Location = new Point(w - 108 - 12, h - 30 - 10);
-        btn.Click += (_, _) => browse();
+        if (dev) btn.Enabled = false;
+        else btn.Click += (_, _) => browse!();
         card.Controls.Add(btn);
 
         Controls.Add(card);
     }
 
     /// <summary>刷新手动配置卡的路径显示（检测完成后由 MainForm 调用）。</summary>
-    public void SetManualPaths(string msfsDirDisplay, string msfs2020DirDisplay, string xp12DirDisplay, string kitDirDisplay)
+    public void SetManualPaths(string msfsDirDisplay, string msfs2020DirDisplay, string xp12DirDisplay)
     {
         _lblMsfsDir.Text = msfsDirDisplay;
         _lblMsfs2020Dir.Text = msfs2020DirDisplay;
         _lblXp12Dir.Text = xp12DirDisplay;
-        _lblKitDir.Text = kitDirDisplay;
     }
 
     // ───────────────────────────── 声明 ─────────────────────────────

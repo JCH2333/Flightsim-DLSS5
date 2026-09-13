@@ -1,4 +1,5 @@
-﻿using DLSS5Patcher.Core;
+﻿using System.Runtime.InteropServices;
+using DLSS5Patcher.Core;
 using DLSS5Patcher.Ui;
 
 namespace DLSS5Patcher;
@@ -86,6 +87,15 @@ public sealed class MainForm : Form
         Theme.ApplyWindowChrome(this);   // Win11 圆角 + 深色属性
     }
 
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, IntPtr lParam);
+
+    private const int WM_NCLBUTTONDOWN = 0xA1;
+    private const int HTCAPTION = 0x2;
+
     // 拖动自绘标题栏（避开窗口按钮区）
     protected override void WndProc(ref Message m)
     {
@@ -101,11 +111,50 @@ public sealed class MainForm : Form
         }
     }
 
+    private void AttachTitleBarDrag(Control target)
+    {
+        // 标签类子控件（HTCLIENT）用 MouseDown 转发拖动
+        target.MouseDown += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                ReleaseCapture();
+                SendMessage(Handle, WM_NCLBUTTONDOWN, HTCAPTION, IntPtr.Zero);
+            }
+        };
+    }
+
     // ───────────────────────────── 外壳 UI ─────────────────────────────
+
+    /// <summary>标题栏面板：整块命中测试为 HTCAPTION。注意：Panel 自身是个子窗口，
+    /// 系统会把 HTCAPTION 拖动发给它导致"标题栏在窗口里滑动"，必须把
+    /// WM_NCLBUTTONDOWN 转发回主窗体，让系统拖动主窗口。</summary>
+    private sealed class TitleBarPanel : Panel
+    {
+        [DllImport("user32.dll")]
+        private static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, IntPtr lParam);
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_NCHITTEST = 0x84;
+            const int WM_NCLBUTTONDOWN = 0xA1;
+            base.WndProc(ref m);
+            if (m.Msg == WM_NCHITTEST && m.Result.ToInt32() == 1)   // HTCLIENT → HTCAPTION
+                m.Result = (IntPtr)HTCAPTION;
+            if (m.Msg == WM_NCLBUTTONDOWN && m.WParam.ToInt32() == HTCAPTION)
+            {
+                ReleaseCapture();
+                SendMessage(FindForm().Handle, WM_NCLBUTTONDOWN, HTCAPTION, IntPtr.Zero);
+            }
+        }
+    }
 
     private void BuildTitleBar()
     {
-        var bar = new Panel
+        var bar = new TitleBarPanel
         {
             Location = new Point(0, 0),
             Size = new Size(ClientW, TitleBarH),
@@ -129,6 +178,10 @@ public sealed class MainForm : Form
         dragHint.Location = new Point(13, 22);
         dragHint.Visible = false;   // 仅保留无障碍文本；视觉走极简
         bar.Controls.Add(dragHint);
+
+        AttachTitleBarDrag(bar);
+        AttachTitleBarDrag(logo);
+        AttachTitleBarDrag(ver);
 
         Controls.Add(bar);
         _titleButtons.Add(bar);
@@ -255,7 +308,7 @@ public sealed class MainForm : Form
 
     private void Log(string s)
     {
-        _home.Log(s);
+        // 运行日志静默记录到后台日志文件（%LOCALAPPDATA%\DLSS5Patcher\logs），提交反馈时自动附带
         AppLog.Info(s);
     }
 
@@ -376,8 +429,7 @@ public sealed class MainForm : Form
             _about.SetManualPaths(
                 _game2024 != null ? $"{_game2024.GameDir}   [{_game2024.Source}]" : L.S("未检测到（可点击右侧按钮指定游戏主程序）", "Not detected (use the button on the right to pick the game executable)"),
                 _game2020 != null ? $"{_game2020.GameDir}   [{_game2020.Source}]" : L.S("未检测到（可点击右侧按钮指定游戏主程序）", "Not detected (use the button on the right to pick the game executable)"),
-                _gameXp12 != null ? $"{_gameXp12.GameDir}   [{_gameXp12.Source}]" : L.S("未检测到（可点击右侧按钮指定 X-Plane.exe）", "Not detected (use the button on the right to pick X-Plane.exe)"),
-                KitStatusText());
+                _gameXp12 != null ? $"{_gameXp12.GameDir}   [{_gameXp12.Source}]" : L.S("未检测到（可点击右侧按钮指定 X-Plane.exe）", "Not detected (use the button on the right to pick X-Plane.exe)"));
 
             _feedback.SetEnvironment(_gpu, _game2024, _game2020, _gameXp12);
         }

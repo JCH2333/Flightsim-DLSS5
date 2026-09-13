@@ -372,6 +372,147 @@ public static class Theme
         catch { /* Win10 无圆角，忽略 */ }
     }
 
+    /// <summary>玻璃复选框（自绘，替代系统白色勾选框）：绿底白勾选中态。</summary>
+    public sealed class GlassCheck : Control
+    {
+        private bool _checked;
+        private bool _hover;
+
+        public bool Checked
+        {
+            get => _checked;
+            set { _checked = value; Invalidate(); CheckedChanged?.Invoke(this, EventArgs.Empty); }
+        }
+
+        public event EventHandler? CheckedChanged;
+
+        public GlassCheck()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+            Font = new Font(FontUi, 9.5f);
+            Size = new Size(120, 24);   // 自绘控件不用 AutoSize（preferred size 为 0 会消失），由调用方按文本设宽
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnClick(EventArgs e)
+        {
+            Checked = !Checked;
+            base.OnClick(e);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var box = new Rectangle(0, Height / 2 - 9, 18, 18);
+            using (var path = RoundedPath(box, 5))
+            {
+                using var fill = new SolidBrush(Checked ? SignalBg : _hover ? SurfaceHover : SurfaceRaised);
+                e.Graphics.FillPath(fill, path);
+                using var pen = new Pen(Checked ? SignalBorder : _hover ? BorderStrong : Theme.FromHex("#4a4b44"));
+                e.Graphics.DrawPath(pen, path);
+            }
+            if (Checked)
+            {
+                using var pen = new Pen(Signal, 2f);
+                pen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+                pen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+                e.Graphics.DrawLine(pen, box.X + 4, box.Y + 9, box.X + 8, box.Y + 13);
+                e.Graphics.DrawLine(pen, box.X + 8, box.Y + 13, box.X + 14, box.Y + 5);
+            }
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(26, 0, Width - 26, Height),
+                ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+        }
+    }
+
+    /// <summary>下拉框黑绿化：扁平 + 深底 + 自绘项（选中项绿色信号底）。</summary>
+    public static void StyleCombo(ComboBox cb)
+    {
+        cb.FlatStyle = FlatStyle.Flat;
+        cb.ForeColor = Text;
+        cb.BackColor = SurfaceRaised;
+        cb.DrawMode = DrawMode.OwnerDrawFixed;
+        cb.DrawItem += (_, e) =>
+        {
+            if (e.Index < 0) return;
+            var selected = (e.State & DrawItemState.Selected) != 0;
+            var hovered = (e.State & DrawItemState.HotLight) != 0;
+            using (var b = new SolidBrush(selected && !hovered ? SignalBg : hovered ? SurfaceHover : SurfaceRaised))
+                e.Graphics.FillRectangle(b, e.Bounds);
+            TextRenderer.DrawText(e.Graphics, cb.Items[e.Index].ToString() ?? "", e.Font, e.Bounds,
+                selected && !hovered ? Signal : Text,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+        };
+    }
+
+    /// <summary>
+    /// 自绘滚动指示条（贴在 RichTextBox 右缘的 4px 细轨，替代系统白色滚动条视觉）。
+    /// RichTextBox 自身需设 ScrollBars.None（滚轮/键盘仍可滚动）。
+    /// </summary>
+    public sealed class ScrollIndicator : Panel
+    {
+        private readonly RichTextBox _rtb;
+        private readonly Panel _fill = new();
+
+        [DllImport("user32.dll")]
+        private static extern bool GetScrollInfo(IntPtr hwnd, int bar, ref SCROLLINFO info);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct SCROLLINFO
+        {
+            public uint cbSize;
+            public uint fMask;
+            public int nMin;
+            public int nMax;
+            public uint nPage;
+            public int nPos;
+            public int nTrackPos;
+        }
+
+        public ScrollIndicator(RichTextBox rtb)
+        {
+            _rtb = rtb;
+            Size = new Size(4, rtb.Height);
+            BackColor = FromHex("#353630");
+            _fill.BackColor = Signal;
+            _fill.Size = new Size(4, 12);
+            _fill.Visible = false;
+            Controls.Add(_fill);
+            rtb.VScroll += (_, _) => UpdateThumb();
+            rtb.TextChanged += (_, _) => UpdateThumb();
+            rtb.HandleCreated += (_, _) => BeginInvoke(new Action(UpdateThumb));
+        }
+
+        private void UpdateThumb()
+        {
+            if (_rtb.IsHandleCreated == false) return;
+            var si = new SCROLLINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<SCROLLINFO>(), fMask = 0x17 };
+            if (!GetScrollInfo(_rtb.Handle, 1, ref si)) return;   // SB_VERT
+            var span = si.nMax - (int)si.nPage + 1;
+            if (span <= 0) { _fill.Visible = false; return; }
+            var trackH = Height;
+            var thumbH = Math.Max(24, (int)(trackH * (double)si.nPage / (si.nMax + 1)));
+            var top = (int)((trackH - thumbH) * ((double)si.nPos / span));
+            _fill.Visible = true;
+            _fill.SetBounds(0, Math.Clamp(top, 0, trackH - thumbH), 4, thumbH);
+        }
+    }
+
+    /// <summary>给多行 RichTextBox 挂上细滚动指示条（置于指定宿主的右上内侧）。</summary>
+    public static ScrollIndicator AttachScrollIndicator(RichTextBox rtb, Control host, int rightInset, int topInset, int height)
+    {
+        var indicator = new ScrollIndicator(rtb)
+        {
+            Size = new Size(4, height),
+            Location = new Point(host.ClientSize.Width - rightInset - 4, topInset),
+        };
+        host.Controls.Add(indicator);
+        indicator.BringToFront();
+        return indicator;
+    }
+
     // ───────────────────────────── 兼容旧 API ─────────────────────────────
 
     public static GlassCard MakeCard(int w, int h)
