@@ -75,16 +75,20 @@ public sealed class TutorialPage : Theme.AmbientPage
                  "3. Modified files and configs are backed up automatically; Uninstall restores everything at any time."));
         Line(L.S("4. 安装完成后启动游戏，进入「图形」设置，把抗锯齿设为 DLSS 或 DLAA（必须）。",
                  "4. Launch the game, open Graphics settings and set Anti-Aliasing to DLSS or DLAA (required)."));
-        Line(L.S("5. 飞行中按 Insert 键打开 OptiScaler 菜单，展开「DLSS Neural Rendering」，",
-                 "5. In flight, press Insert to open the OptiScaler menu and expand \"DLSS Neural Rendering\" —"));
-        Line(L.S("   应显示 Running - xx ms per frame，即神经渲染已在工作。",
+        Line(L.S("5. ⚠ 主菜单不要开启滤镜 / NR：MSFS 2024 主菜单会大量预载世界数据，显存占用极高，",
+                 "5. ⚠ Do NOT enable the filter / NR at the main menu: MSFS 2024 preloads a lot of world data there and VRAM usage is extreme,"));
+        Line(L.S("   此时开启神经渲染容易显存溢出（弹出报错后闪退）。请先进入飞行。",
+                 "   so enabling neural rendering there can overflow VRAM (error popup + crash). Enter a flight first."));
+        Line(L.S("6. 进入飞行后再按 Insert 键打开 OptiScaler 菜单，展开「DLSS Neural Rendering」并开启，",
+                 "6. In flight, press Insert to open the OptiScaler menu, expand \"DLSS Neural Rendering\" and enable it —"));
+        Line(L.S("   显示 Running - xx ms per frame，即神经渲染已在工作。",
                  "   it should show Running - xx ms per frame, meaning neural rendering is active."));
-        Line(L.S("6. 调优建议：帧数吃紧 → 调低 Model resolution；画面锐化过猛 → 调低 Detail strength。",
-                 "6. Tuning: low FPS → lower Model resolution; over-sharpened image → lower Detail strength."));
-        Line(L.S("7. 游戏内如出现「Update v0.9.4」更新提示，请勿点击（主线版本不含神经渲染，会覆盖补丁）。",
-                 "7. If the OptiScaler menu offers \"Update v0.9.4\", do NOT accept (the mainline build lacks neural rendering and would overwrite the patch)."));
-        Line(L.S("8. 微软商店 / Xbox 版：游戏装在 <盘>:\\XboxGames 下可自动检测；装在自定义位置时，",
-                 "8. Microsoft Store / Xbox version: auto-detection works when the game is under <drive>:\\XboxGames; if installed elsewhere,"));
+        Line(L.S("7. 调优建议：帧数吃紧 → 调低 Model resolution；画面锐化过猛 → 调低 Detail strength。",
+                 "7. Tuning: low FPS → lower Model resolution; over-sharpened image → lower Detail strength."));
+        Line(L.S("8. 游戏内如出现「Update v0.9.4」更新提示，请勿点击（主线版本不含神经渲染，会覆盖补丁）。",
+                 "8. If the OptiScaler menu offers \"Update v0.9.4\", do NOT accept (the mainline build lacks neural rendering and would overwrite the patch)."));
+        Line(L.S("9. 微软商店 / Xbox 版：游戏装在 <盘>:\\XboxGames 下可自动检测；装在自定义位置时，",
+                 "9. Microsoft Store / Xbox version: auto-detection works when the game is under <drive>:\\XboxGames; if installed elsewhere,"));
         Line(L.S("   请在「设置 / 关于」页的「手动配置」中直接选择游戏主程序 exe（商店版 exe 在 Content 目录内）。",
                  "   pick the game's executable directly under \"Manual setup\" on the Settings / About page (the Store exe lives inside the Content folder)."));
         Gap();

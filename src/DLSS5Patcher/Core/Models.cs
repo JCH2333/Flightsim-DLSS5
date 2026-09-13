@@ -49,7 +49,9 @@ public sealed record GpuInfo(string Name, string Driver, GpuGeneration Generatio
             };
             if (VramMb <= 0) return byGen;
 
-            var cap = VramMb >= 16_000 ? "1.0" : VramMb >= 11_000 ? "0.75" : VramMb >= 8_000 ? "0.5" : "0.35";
+            // MSFS 2024 主菜单显存占用极高（世界预载），16GB 以下一律压到 0.5 及以下，
+            // 避免在菜单开启神经渲染时 OOM 闪退（用户实测反馈）。
+            var cap = VramMb >= 16_000 ? "1.0" : VramMb >= 8_000 ? "0.5" : "0.35";
             return string.CompareOrdinal(byGen, cap) > 0 ? cap : byGen;
         }
     }
