@@ -20,7 +20,6 @@ public sealed class AnnouncementDialog : Form
         Size = new Size(480, 460);
         BackColor = Theme.FromHex("#1a1c18");
         TopMost = true;
-        Opacity = 0;   // Fx.FadeIn 渐显
 
         var megaphone = new Label
         {
@@ -91,7 +90,6 @@ public sealed class AnnouncementDialog : Form
         Shown += (_, _) =>
         {
             Theme.ApplyWindowChrome(this);
-            Fx.FadeIn(this, 220, 8);
         };
         Paint += (_, e) =>
         {

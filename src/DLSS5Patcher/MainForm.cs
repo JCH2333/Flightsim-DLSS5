@@ -29,8 +29,6 @@ public sealed class MainForm : Form
     private readonly Control[] _pages = new Control[6];
     private readonly Theme.NavButton[] _nav = new Theme.NavButton[5];
     private Panel _annDot = new();
-    private Control? _contentHost;
-    private Control? _visiblePage;
     private readonly List<Control> _titleButtons = new();
 
     public MainForm()
@@ -44,7 +42,6 @@ public sealed class MainForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        Opacity = 0;   // 启动渐显（Shown 后由 Fx.FadeIn 驱动）
 
         _pages[0] = _home;
         _pages[1] = _tutorial;
@@ -63,7 +60,6 @@ public sealed class MainForm : Form
             Size = new Size(ClientW - SidebarW, ClientH - TitleBarH),
             BackColor = Theme.Bg,
         };
-        _contentHost = content;
         foreach (var p in _pages)
         {
             p.Location = new Point(0, 0);
@@ -91,7 +87,6 @@ public sealed class MainForm : Form
         // 先做强制更新检查（可能弹模态框），完成后拉公告：更新未读点 + 弹窗逐条展示
         Shown += async (_, _) =>
         {
-            Fx.FadeIn(this, 280, 14);   // 启动渐显 + 轻微上浮
             await RunUpdateCheckAsync(startup: true);
             await LoadAnnouncementsAsync();
         };
@@ -332,14 +327,7 @@ public sealed class MainForm : Form
 
     private void SelectNav(int idx)
     {
-        var next = _pages[idx];
-        var old = _visiblePage;
-        if (!ReferenceEquals(old, next))
-        {
-            int oldIdx = old == null ? -1 : Array.IndexOf(_pages, old);
-            Fx.AnimatePageSwitch(_contentHost!, old, next);   // GSX 同款：旧页淡出上浮，新页自下方升入
-            _visiblePage = next;
-        }
+        _pages[idx].BringToFront();
         for (int i = 0; i < _nav.Length; i++)
         {
             _nav[i].Active = i == idx;
