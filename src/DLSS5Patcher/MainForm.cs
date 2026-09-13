@@ -365,10 +365,21 @@ public sealed class MainForm : Form
         {
             Title = L.S($"选择 {cnName} 主程序（{t.ExeName}）", $"Select the {cnName} executable ({t.ExeName})"),
             Filter = $"{t.ExeName}|{t.ExeName}|{L.S("所有程序 (*.exe)|*.exe", "All executables (*.exe)|*.exe")}",
-            CheckFileExists = true,
+            // 不让对话框真的打开文件做校验（CheckFileExists 会尝试读取所选文件，
+            // 在 ACL 受限的游戏目录会误报"没有打开该文件的权限"）；存在性由 FromManualExe 自行校验
+            CheckFileExists = false,
+            CheckPathExists = true,
         };
         if (cur != null && Directory.Exists(cur.GameDir)) dlg.InitialDirectory = cur.GameDir;
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (!File.Exists(dlg.FileName))
+        {
+            MessageBox.Show(this,
+                L.S("所选文件不存在或当前账户无法访问。请确认路径正确；若游戏目录权限受限，请以管理员身份运行本工具后重试。",
+                    "The selected file does not exist or is not accessible. Verify the path; if the game folder has restricted permissions, run this tool as administrator and retry."),
+                L.S("无效的程序文件", "Invalid executable"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         var g = GameLocator.FromManualExe(dlg.FileName, t.ExeName);
         if (g == null)
         {

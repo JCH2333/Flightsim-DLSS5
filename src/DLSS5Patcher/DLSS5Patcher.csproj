@@ -10,7 +10,7 @@
     <RootNamespace>DLSS5Patcher</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <AssemblyTitle>MSFS DLSS5 神经渲染安装器</AssemblyTitle>
     <Product>MSFS DLSS5 Patcher</Product>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
