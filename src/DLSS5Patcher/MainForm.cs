@@ -621,35 +621,63 @@ public sealed class MainForm : Theme.DpiScaledForm
         var t = GameLocator.Targets[targetIdx];
         var cnName = L.S(t.CnName, t.EnName);
         var cur = targetIdx switch { 0 => _game2024, 1 => _game2020, _ => _gameXp12 };
-        using var dlg = new OpenFileDialog
+
+        // 不用文件选择对话框：Vista 通用对话框在点「打开」时会无条件试开所选文件做可读性校验，
+        // ACL 受限的游戏目录（重打包整合版常见）会弹「没有打开文件的权限」且无法继续——
+        // CheckFileExists=false 也拦不住。改为选文件夹 + 自动定位主程序，全程不打开任何文件。
+        string folder;
+        using (var dlg = new FolderBrowserDialog
         {
-            Title = L.S($"选择 {cnName} 主程序（{t.ExeName}）", $"Select the {cnName} executable ({t.ExeName})"),
-            Filter = $"{t.ExeName}|{t.ExeName}|{L.S("所有程序 (*.exe)|*.exe", "All executables (*.exe)|*.exe")}",
-            // 不让对话框真的打开文件做校验（CheckFileExists 会尝试读取所选文件，
-            // 在 ACL 受限的游戏目录会误报"没有打开该文件的权限"）；存在性由 FromManualExe 自行校验
-            CheckFileExists = false,
-            CheckPathExists = true,
-        };
-        if (cur != null && Directory.Exists(cur.GameDir)) dlg.InitialDirectory = cur.GameDir;
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        // 注意不能用 File.Exists：ACL 受限目录里对真实存在的 exe 会误报 false（视为“不存在”）
-        if (!GameLocator.FileExistsLoose(dlg.FileName))
+            Description = L.S($"选择 {cnName} 所在文件夹（内含 {t.ExeName}）。",
+                              $"Pick the folder containing {cnName}'s {t.ExeName}."),
+            ShowNewFolderButton = false,
+            UseDescriptionForTitle = true,
+        })
+        {
+            if (cur != null && Directory.Exists(cur.GameDir)) dlg.SelectedPath = cur.GameDir;
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            folder = dlg.SelectedPath;
+        }
+
+        // 期望路径直接命中（含 folder\Content 顶层，微软商店版布局）
+        var direct = GameLocator.FromManualDir(folder, t.ExeName);
+        if (direct != null)
+        {
+            FinishManualExe(direct, targetIdx, cnName);
+            return;
+        }
+
+        // 该文件夹顶层列出的 .exe 里找（只列文件名，不打开文件；对话框能浏览进来说明可列举）
+        string[] exes;
+        try { exes = Directory.GetFiles(folder, "*.exe"); }
+        catch (Exception ex)
         {
             MessageBox.Show(this,
-                L.S("所选文件不存在或当前账户无法访问。请确认路径正确；若游戏目录权限受限，请以管理员身份运行本工具后重试。",
-                    "The selected file does not exist or is not accessible. Verify the path; if the game folder has restricted permissions, run this tool as administrator and retry."),
+                L.S($"无法列出该文件夹的内容：{ex.Message}", $"Cannot list this folder: {ex.Message}"),
                 L.S("无效的程序文件", "Invalid executable"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        var g = GameLocator.FromManualExe(dlg.FileName, t.ExeName);
-        if (g == null)
+        if (exes.Length == 0)
         {
             MessageBox.Show(this,
-                L.S($"请选择 {cnName} 的主程序 {t.ExeName}（微软商店版在 ...\\XboxGames\\...\\Content 目录内）。",
-                    $"Please select {cnName}'s main executable {t.ExeName} (inside ...\\XboxGames\\...\\Content for the Store version)."),
+                L.S($"该文件夹内没有找到 .exe 程序。请选择包含 {cnName} 主程序（{t.ExeName}）的文件夹。",
+                    $"No .exe found in this folder. Pick the folder containing {cnName}'s {t.ExeName}."),
                 L.S("无效的程序文件", "Invalid executable"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
+        if (exes.Length == 1)
+        {
+            FinishManualExe(exes[0], targetIdx, cnName);
+            return;
+        }
+
+        // 多个 exe：自绘列表选择（仍然只读文件名）
+        var picked = PickExeDialog.Show(this, t.ExeName, exes);
+        if (picked != null) FinishManualExe(picked, targetIdx, cnName);
+    }
+
+    private void FinishManualExe(GameInstall g, int targetIdx, string cnName)
+    {
         switch (targetIdx)
         {
             case 0: AppConfig.ManualExe24 = g.ExePath; break;
@@ -659,6 +687,96 @@ public sealed class MainForm : Theme.DpiScaledForm
         AppConfig.Save();
         Log(L.S($"已手动指定 {cnName} 主程序：{g.ExePath}", $"Manually set the {cnName} executable: {g.ExePath}"));
         _ = RefreshAsync();
+    }
+
+    private void FinishManualExe(string exePath, int targetIdx, string cnName)
+    {
+        var t = GameLocator.Targets[targetIdx];
+        var g = GameLocator.FromManualExe(exePath, t.ExeName);
+        if (g == null)
+        {
+            MessageBox.Show(this,
+                L.S($"定位到的程序名与期望的主程序 {t.ExeName} 不符。请确认选择的是 {cnName} 的安装目录（微软商店版在 ...\\XboxGames\\...\\Content 内）。",
+                    $"The located executable does not match the expected {t.ExeName}. Verify this is {cnName}'s install folder (inside ...\\XboxGames\\...\\Content for the Store version)."),
+                L.S("无效的程序文件", "Invalid executable"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        FinishManualExe(g, targetIdx, cnName);
+    }
+
+    /// <summary>同一文件夹内有多个 exe 时的自绘选择框（只读文件名，不打开任何文件）。</summary>
+    private sealed class PickExeDialog : Theme.DpiScaledForm
+    {
+        private readonly ListBox _list = new();
+        private readonly List<string> _paths;
+        public string? Picked { get; private set; }
+
+        public static string? Show(Form owner, string exeName, string[] paths)
+        {
+            using var dlg = new PickExeDialog(exeName, paths);
+            dlg.ShowDialog(owner);
+            return dlg.Picked;
+        }
+
+        private PickExeDialog(string exeName, string[] paths) : base(560, 380)
+        {
+            _paths = paths.ToList();
+            Text = L.S("选择主程序", "Pick the main executable");
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.CenterParent;
+            BackColor = Theme.FromHex("#1a1c18");
+            Font = new Font(Theme.FontUi, 9F);
+
+            var tip = Theme.MakeLabel(
+                L.S($"该文件夹内有多个程序，请选择主程序（应为 {exeName}）：",
+                    $"Multiple executables found — pick the main one (expected: {exeName}):"),
+                Theme.Text, 9.5f, bold: true);
+            tip.Location = new Point(20, 18);
+            Controls.Add(tip);
+
+            _list.BackColor = Theme.SurfaceRaised;
+            _list.ForeColor = Theme.TextSecondary;
+            _list.BorderStyle = BorderStyle.FixedSingle;
+            _list.Font = new Font(Theme.FontUi, 9.25f);
+            _list.Size = new Size(516, 220);
+            _list.Location = new Point(20, 52);
+            _list.IntegralHeight = false;
+            foreach (var p in _paths)
+            {
+                long len = 0;
+                try { len = new FileInfo(p).Length; } catch { }
+                _list.Items.Add($"{Path.GetFileName(p)}   ({Math.Max(1, len / 1024 / 1024)} MB)");
+            }
+            _list.SelectedIndex = 0;
+            _list.DoubleClick += (_, _) => Accept();
+            Controls.Add(_list);
+
+            var ok = new Theme.GlassButton { Text = L.S("确定", "OK"), Primary = true, Size = new Size(120, 36), Location = new Point(416, 288) };
+            ok.Click += (_, _) => Accept();
+            Controls.Add(ok);
+
+            var cancel = new Theme.GlassButton { Text = L.S("取消", "Cancel"), Size = new Size(100, 36), Location = new Point(300, 288) };
+            cancel.Click += (_, _) => Close();
+            Controls.Add(cancel);
+
+            Shown += (_, _) => Theme.ApplyWindowChrome(this);
+            Paint += (_, e) =>
+            {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using var pen = new Pen(Theme.GlassBorder);
+                e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+            };
+        }
+
+        private void Accept()
+        {
+            if (_list.SelectedIndex < 0) return;
+            Picked = _paths[_list.SelectedIndex];
+            Close();
+        }
     }
 
     private void PickKitDir()

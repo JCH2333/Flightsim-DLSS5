@@ -124,13 +124,13 @@ public sealed class AboutPage : Theme.AmbientPage
 
         BuildTargetCard(gx, gy, cw, ch,
             "MSFS 2024", L.S("游戏主程序 FlightSimulator2024.exe", "Executable FlightSimulator2024.exe"),
-            _lblMsfsDir, L.S("指定程序...", "Pick exe..."), () => MsfsBrowseRequested?.Invoke());
+            _lblMsfsDir, L.S("选择文件夹...", "Pick folder..."), () => MsfsBrowseRequested?.Invoke());
         BuildTargetCard(gx + cw + 10, gy, cw, ch,
             "MSFS 2020 · BETA", L.S("游戏主程序 FlightSimulator.exe", "Executable FlightSimulator.exe"),
-            _lblMsfs2020Dir, L.S("指定程序...", "Pick exe..."), () => Msfs2020BrowseRequested?.Invoke());
+            _lblMsfs2020Dir, L.S("选择文件夹...", "Pick folder..."), () => Msfs2020BrowseRequested?.Invoke());
         BuildTargetCard(gx, gy + ch + 10, cw, ch,
             "X-Plane 12", L.S("游戏主程序 X-Plane.exe", "Executable X-Plane.exe"),
-            _lblXp12Dir, L.S("指定程序...", "Pick exe..."), () => XpBrowseRequested?.Invoke());
+            _lblXp12Dir, L.S("选择文件夹...", "Pick folder..."), () => XpBrowseRequested?.Invoke());
         BuildTargetCard(gx + cw + 10, gy + ch + 10, cw, ch,
             "X-Plane 11", L.S("游戏主程序 X-Plane.exe", "Executable X-Plane.exe"),
             null, L.S("开发中", "In development"), null, dev: true);
