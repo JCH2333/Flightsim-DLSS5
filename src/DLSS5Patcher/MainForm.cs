@@ -278,7 +278,7 @@ public sealed class MainForm : Theme.DpiScaledForm
         _annDot = new Panel
         {
             Size = new Size(9, 9),
-            BackColor = Theme.Signal,
+            BackColor = Theme.Danger,   // 未读提示点用红色更醒目
             Location = new Point(bell.Right - 7, bell.Top - 2),
         };
         _annDot.Visible = false;
