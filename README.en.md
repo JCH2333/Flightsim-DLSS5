@@ -10,20 +10,32 @@ English | [简体中文](README.md)
 
 ---
 
-Official DLSS neural rendering (transformer models + Neural Rendering) ships only with RTX 50 series. This project brings the **neural-rendering pass** to every RTX GPU from the 20-series up, packaged as a **bilingual (Chinese/English), single-EXE, portable** patcher.
+Official DLSS neural rendering (transformer models + Neural Rendering) ships only with RTX 50 series. This project brings the **neural-rendering pass** to every RTX GPU from the 20-series up, packaged as a **bilingual (Chinese/English), single-EXE, portable** patcher. It ships with an **in-app feedback system** (query status by feedback code), **announcements**, a detailed **tutorial** and **auto-update**.
 
 ![Home](docs/screenshots/home-en.png)
 
 ## ✨ Features
 
 - 🎮 **Three game cards**: MSFS 2024 / MSFS 2020 (Beta) / X-Plane 12 — each card keeps just two buttons: Install and Uninstall
+- 🆘 **In-app feedback**: run log + install manifests are attached automatically, screenshots and a username optional; you get a feedback code (auto-copied) to track status and read the admin reply anytime
+- 📢 **Announcement system**: announcements page + startup popups for critical notices
 - 🌐 **Bilingual UI**: pick your language on first launch, switch anytime in Settings
-- 📦 **Ultra-lightweight + server distribution**: the app itself is only ~70MB (zero embedded packages); installs auto-download packages from our own server (server → GitHub → mirror failover, resumable transfers, SHA256-verified), cached locally for offline reinstalls
-- 🔄 **Auto-update**: checks GitHub Releases on launch and force-updates when a new version exists (mirror fallback + slow-transfer watchdog for both check and download, SHA256-verified, automatic swap & restart)
-- 🖥️ **Dark card-style UI**, native WinForms single EXE (~510 MB, self-contained), high-DPI / 4K ready
+- 📦 **Ultra-lightweight + server distribution**: the app itself is only ~72MB (zero embedded packages); installs auto-download packages from our own server (server → GitHub → mirror failover, resumable transfers, SHA256-verified), cached locally for offline reinstalls
+- 🔄 **Auto-update**: force-updates when a new version exists (multi-source download, SHA256-verified, slow-transfer watchdog, automatic swap & restart)
+- 🖥️ **Dark card-style UI**, native WinForms single EXE (~72MB, self-contained); drag freely between monitors with different DPI scales — window size and fonts adapt
 - 🔒 **Safe & reversible**: installs back up every modified file and config; uninstall restores everything — saves and add-ons are never touched
 - 🧠 **Per-GPU-generation auto-tuning** of the NR runtime and defaults; RTX 50 series automatically gets NVIDIA's original runtime
 - 🧰 **GUI + CLI** in one binary (script/CI friendly)
+
+## 🖼️ Screenshots
+
+| Tutorial | Feedback |
+|---|---|
+| ![Tutorial](docs/screenshots/tutorial-zh.png) | ![Feedback](docs/screenshots/feedback-zh.png) |
+
+| Settings · About | Announcements |
+|---|---|
+| ![Settings](docs/screenshots/settings-en.png) | ![Announcements](docs/screenshots/announcements-zh.png) |
 
 ## 🎮 Supported games & routes
 
@@ -36,15 +48,15 @@ Official DLSS neural rendering (transformer models + Neural Rendering) ships onl
 ## 🚀 Getting started
 
 1. Download `DLSS5Patcher.exe` from [Releases](../../releases) (or build it yourself), right-click → **Run as administrator**
-2. Choose your interface language on first launch
+2. Choose your interface language on first launch and scroll through the license agreement
 3. The tool auto-detects your GPU, driver and game folders (Steam / Microsoft Store, with manual browse as a fallback)
-4. **MSFS 2024**: click Install on its card (package is embedded — no internet needed, takes about a minute)
-5. **X-Plane 12**: click Select Kit... and point it at a DLSS5-Feeder kit folder, then click Install
+4. **MSFS 2024**: click Install on its card (the ~440MB package auto-downloads on first install with multi-source failover; cached locally afterwards), takes about a minute
+5. **X-Plane 12**: just click Install (the ~150MB kit auto-downloads)
 6. Verify in game:
    - MSFS 2024: press `Insert` → OptiScaler menu → DLSS Neural Rendering should show `Running - xx ms per frame`; set the game's Anti-Aliasing to **DLSS/DLAA**
    - X-Plane 12: press `Home` → verify MotionEstimation and DLSS5_Feed are enabled → the Deep Fried Chicken tab should show `standalone neural pipeline active`
 
-> 📖 The in-app Tutorial page has detailed step-by-step instructions (including what to send the author when something goes wrong).
+> 📖 The in-app Tutorial page has detailed step-by-step instructions. Run into a problem? Use the in-app **Feedback** page — logs are attached automatically and you can track progress with your feedback code.
 
 ## ⌨️ Command line
 
@@ -79,7 +91,7 @@ Official ReShade framework headers (ReShade.fxh etc.) are added automatically by
 - XP12: motion vectors are shader-estimated — fast camera moves show brief ghosting
 - XP12 needs the `--allow_reshade` launch parameter (prevents the game from blocking the layer)
 - 8GB-VRAM cards may crash with VRAM overflow while DLSS5 is on (the game's own memory pressure): the installer auto-recommends WorkingScale by VRAM (8GB → 0.5, smaller → 0.35); lower it in Settings and reinstall if it still overflows
-- RTX 40/50 adaptation logic has not been widely verified on physical cards — feedback welcome
+- RTX 40/50 adaptation logic has not been widely verified on physical cards — report your results via the in-app Feedback page
 - ⚠️ Do NOT accept the "Update available" prompt in the OptiScaler menu (the mainline build has no neural rendering)
 
 ## 🧠 How it works
@@ -103,7 +115,7 @@ Requirements: .NET 8 SDK (`net8.0-windows` + WinForms), Windows 10/11 only.
 > See `server/DEPLOY.md` for the server layout; build the XP12 kit with `tools/make_kit_zip.py` (then sync its SHA256 into `Core/PackageCatalog.cs`).
 > Override the primary source via the `DLSS5_REPO` env var or a `repo=` line in the config file (testing/emergency). Most users should simply grab a ready-made EXE from [Releases](../../releases).
 
-Code layout: `MainForm.cs` (shell + business logic), `Ui/Theme.cs` (design tokens & control factory), `Ui/HomePage.cs` (game cards + log), `Ui/TutorialPage.cs`, `Ui/AboutPage.cs`, `Ui/LanguageDialog.cs` (first-run language picker), `Core/` (installers, game locator, localization helper and config).
+Code layout: `MainForm.cs` (shell + business logic), `Ui/Theme.cs` (design tokens & control factory), `Ui/HomePage.cs` (game cards + detection), `Ui/TutorialPage.cs`, `Ui/FeedbackPage.cs` (feedback), `Ui/AnnouncementsPage.cs` (announcements), `Ui/SponsorPage.cs`, `Ui/AboutPage.cs`, `Ui/LanguageDialog.cs` (first-run language picker), `Core/` (installers, game locator, announcement/feedback clients, localization helper and config); `server/` (distribution + CMS/feedback API).
 
 ## ⚖️ Statement
 

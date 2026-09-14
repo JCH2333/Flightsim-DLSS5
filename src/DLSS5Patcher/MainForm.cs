@@ -71,6 +71,10 @@ public sealed class MainForm : Theme.DpiScaledForm
         WireEvents();
 
         SelectNav(0);
+        // 隐藏调试入口：DLSS5_STARTUP_PAGE=N 直接以第 N 页启动（文档截图用，不进 CLI）
+        if (int.TryParse(Environment.GetEnvironmentVariable("DLSS5_STARTUP_PAGE"), out var startPage)
+            && startPage is >= 0 and <= 5)
+            SelectNav(startPage);
         _ = RefreshAsync();
 
         Updater.CleanLeftovers();
