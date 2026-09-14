@@ -74,6 +74,7 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
         BuildShotsCard(600);
         BuildSubmitRow(702);
         BuildQueryCard(758);
+        UpdateSubmitGate();   // 防呆初始态：未勾选游戏/未填描述时禁用提交
 
         // 页面级滚动条：外观与教程滑块一致，固定在视口右缘（后注册 → 悬停卡片内的富文本框/日志列表时优先滚它们）
         _pageBar.SetBounds(836, 6, 12, 788);
@@ -277,7 +278,7 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
         var card = Theme.MakeCard(790, 56);
         card.Location = new Point(36, y);
 
-        var head = Theme.MakeLabel(L.S("出问题的游戏（可多选，勾选后自动附加对应日志）：", "Affected game(s) (multi-select; related logs are attached automatically):"),
+        var head = Theme.MakeLabel(L.S("出问题的游戏（必选，可多选；勾选后自动附加对应日志）：", "Affected game(s) (required, multi-select; related logs are attached automatically):"),
             Theme.Text, 9.75f, bold: true);
         head.Location = new Point(16, 8);
         card.Controls.Add(head);
@@ -295,7 +296,7 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
         ck.Size = new Size(TextRenderer.MeasureText(text, ck.Font).Width + 34, 24);
         ck.Location = new Point(x, 26);
         ck.ForeColor = Theme.TextSecondary;
-        ck.CheckedChanged += (_, _) => RescanLogs();
+        ck.CheckedChanged += (_, _) => { RescanLogs(); UpdateSubmitGate(); };
         card.Controls.Add(ck);
     }
 
@@ -377,7 +378,7 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
         _txtDesc.Font = new Font("Microsoft YaHei UI", 9f);
         _txtDesc.Size = new Size(758, 136);
         _txtDesc.Location = new Point(16, 32);
-        _txtDesc.TextChanged += (_, _) => _lblCount.Text = $"{_txtDesc.Text.Length}/{MaxDescChars}";
+        _txtDesc.TextChanged += (_, _) => { _lblCount.Text = $"{_txtDesc.Text.Length}/{MaxDescChars}"; UpdateSubmitGate(); };
         card.Controls.Add(_txtDesc);
         Theme.AttachScrollIndicator(_txtDesc, card, rightInset: 16, topInset: 34, height: 132);
 
@@ -641,8 +642,8 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
                 _lstLogs.Items.Add(new LogItem(label, path, new FileInfo(path).Length), true);
         }
 
-        AddIfExists(L.S("本次运行日志（自动附加）", "Current session log (attached automatically)"),
-            AppLog.SessionPath ?? "");
+        AddIfExists(L.S("运行日志（自动附加，含全部历史）", "Run log (attached automatically, full history)"),
+            AppLog.LogPath ?? "");
 
         if (_ck24.Checked || _ck20.Checked)
         {
@@ -719,6 +720,33 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
 
     // ───────────────────────────── 提交 ─────────────────────────────
 
+    /// <summary>防呆门控：必须勾选至少一个出问题的游戏且填写描述才允许提交（提交中/已提交态不干预）。</summary>
+    private void UpdateSubmitGate()
+    {
+        if (_submitted || _submitting) return;
+        bool anyGame = _ck24.Checked || _ck20.Checked || _ckxp.Checked;
+        bool hasDesc = _txtDesc.Text.Trim().Length > 0;
+        _btnSubmit.Enabled = anyGame && hasDesc;
+        if (!anyGame)
+        {
+            _lblStatus.ForeColor = Theme.Warning;
+            _lblStatus.Text = L.S("请先勾选出问题的游戏（必选，可多选），并填写问题描述。",
+                                  "Pick the affected game(s) first (required, multi-select) and fill in the description.");
+        }
+        else if (!hasDesc)
+        {
+            _lblStatus.ForeColor = Theme.Warning;
+            _lblStatus.Text = L.S("已选择游戏，请填写问题描述后提交。",
+                                  "Game(s) selected — fill in the description to submit.");
+        }
+        else
+        {
+            _lblStatus.ForeColor = Theme.TextMuted;
+            _lblStatus.Text = L.S("就绪：日志将随反馈自动附加（超长自动只取末尾 256KB）。",
+                                  "Ready: logs are attached automatically (last 256 KB if oversized).");
+        }
+    }
+
     private void SetFormEnabled(bool enabled)
     {
         // 文本框用 ReadOnly（保持深色背景，禁用态 RichTextBox 会变白底）；其余控件直接禁用
@@ -761,11 +789,9 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
         _shots.Clear();
         RefreshShots();
         _lblCount.Text = "";
-        _lblStatus.ForeColor = Theme.TextMuted;
-        _lblStatus.Text = L.S("提交前请确认已勾选出问题的游戏并填写问题描述。",
-                              "Before submitting, pick the affected game(s) and fill in the description.");
         _btnSubmit.Text = L.S("提交反馈", "Submit Feedback");
         _btnCopyCode.Visible = false;
+        UpdateSubmitGate();
         AnimateScrollTo(0);
     }
 
