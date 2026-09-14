@@ -437,6 +437,9 @@ public static class Theme
         private bool _checked;
         private bool _hover;
 
+        /// <summary>轨道缩放倍数（1 = 40x20；1.3 ≈ 52x26 大号开关）。</summary>
+        public float TrackScale { get; set; } = 1f;
+
         public bool Checked
         {
             get => _checked;
@@ -478,7 +481,7 @@ public static class Theme
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
 
             // 轨道
-            int tw = 40, th = 20;
+            int tw = (int)(40 * TrackScale), th = (int)(20 * TrackScale);
             var track = new Rectangle(Width - tw, Height / 2 - th / 2, tw, th);
             using (var path = RoundedPath(track, th / 2))
             {

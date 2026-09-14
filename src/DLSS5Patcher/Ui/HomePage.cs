@@ -227,16 +227,18 @@ public sealed class HomePage : Theme.AmbientPage
         _allButtons.Add(btnUninstall);
         strip.Controls.Add(btnUninstall);
 
-        // OptiScaler 路线（MSFS 2024 / 2020）：条内左侧放「神经渲染」开关，
+        // OptiScaler 路线（MSFS 2024 / 2020）：「一键安装」左侧放「神经渲染开关」，
         // 直接读写游戏目录 OptiScaler.ini 的 [DlssNr] Enabled（爆显存死机时的自救开关）
         if (idx == CardMsfs2024 || idx == CardMsfs2020)
         {
             var sw = new Theme.GlassSwitch
             {
-                Text = L.S("神经渲染", "Neural Render"),
-                Size = new Size(132, 22),
-                Location = new Point(20, 10),
+                Text = L.S("神经渲染开关", "Neural Render"),
+                TrackScale = 1.3f,
+                Size = new Size(196, 34),
+                Location = new Point(ContentW - 124 - 110 - 12 - 16 - 196 - 12, 4),
                 ForeColor = Theme.TextSecondary,
+                Font = new Font(Theme.FontUi, 9.5f),
             };
             sw.CheckedChanged += (_, _) => NrToggleRequested?.Invoke(idx, sw.Checked);
             _nrSwitch[idx] = sw;
