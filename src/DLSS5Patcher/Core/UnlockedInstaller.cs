@@ -50,6 +50,60 @@ public static class UnlockedInstaller
         return L.S("未安装", "Not installed");
     }
 
+    /// <summary>
+    /// 读取 OptiScaler.ini [DlssNr] Enabled 的当前开关状态（供主页卡片的状态开关显示）。
+    /// 返回 false 表示无法读取（未安装/无该段/IO 异常），调用方应隐藏开关。
+    /// </summary>
+    public static bool TryGetNrEnabled(string gameDir, out bool enabled)
+    {
+        enabled = false;
+        try
+        {
+            var ini = Path.Combine(gameDir, "OptiScaler.ini");
+            if (!File.Exists(ini)) return false;
+            var text = File.ReadAllText(ini);
+            var segOpt = GetDlssNrSegment(text);
+            if (segOpt == null) return false;
+            var m = Regex.Match(text[segOpt.Value.start..segOpt.Value.end], @"(?m)^Enabled=([^\r\n]*)");
+            if (!m.Success) return false;
+            var v = m.Groups[1].Value.Trim();
+            enabled = v.Equals("true", StringComparison.OrdinalIgnoreCase) || v == "1";
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>改写 OptiScaler.ini [DlssNr] Enabled（用户通过主页开关开/关神经渲染）。返回是否成功。</summary>
+    public static bool SetNrEnabled(string gameDir, bool enabled)
+    {
+        try
+        {
+            var iniPath = Path.Combine(gameDir, "OptiScaler.ini");
+            if (!File.Exists(iniPath)) return false;
+            var text = File.ReadAllText(iniPath);
+            var segOpt = GetDlssNrSegment(text);
+            if (segOpt == null) return false;
+            (int s, int e) = segOpt.Value;
+            var seg = text[s..e];
+            if (!seg.Contains("Enabled=", StringComparison.Ordinal)) return false;
+            var nl = text.Contains("\r\n") ? "\r" : "";
+            var newSeg = Regex.Replace(seg, @"(?m)^(Enabled=)[^\r\n]*\r?$", "${1}" + (enabled ? "true" : "false") + nl);
+            File.WriteAllText(iniPath, text[..s] + newSeg + text[e..]);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>定位 [DlssNr] 段（start=段头偏移，end=段尾偏移，不含下一个段头）。</summary>
+    private static (int start, int end)? GetDlssNrSegment(string ini)
+    {
+        int s = ini.IndexOf("[DlssNr]", StringComparison.Ordinal);
+        if (s < 0) return null;
+        int e = ini.IndexOf("\n[", s + 1, StringComparison.Ordinal);
+        if (e < 0) e = ini.Length;
+        return (s, e);
+    }
+
     public sealed class InstallOptions
     {
         public required string GameDir { get; init; }

@@ -142,21 +142,36 @@ public sealed class TutorialPage : Theme.AmbientPage
                  "3. Describe the problem (required): what happens, when, how to reproduce, in-game settings — the more detail, the faster the fix."));
         Line(L.S("4. 建议附上截图（最多 4 张、每张 ≤ 8MB）：游戏内报错弹窗、画面异常、安装失败提示等。",
                  "4. Attach screenshots if possible (up to 4, each ≤ 8 MB): in-game error popups, visual glitches, installer failures..."));
-        Line(L.S("5. 点击「提交反馈」。成功后会显示反馈编号（形如 FB-20260914-xxxxxx）。",
-                 "5. Click \"Submit Feedback\". On success you'll get a feedback ID (like FB-20260914-xxxxxx)."));
-        Line(L.S("6. 把反馈编号发到粉丝群（QQ 群：615523002），维护者会按编号查看你的日志与截图并跟进修复。",
-                 "6. Share that ID in the fan group (QQ 615523002) — the maintainer will look up your logs and screenshots by ID and follow up."));
+        Line(L.S("5. 点击「提交反馈」。成功后会显示反馈码（自动复制到剪贴板）。",
+                 "5. Click \"Submit Feedback\". On success you'll get a feedback code (copied to the clipboard automatically)."));
+        Line(L.S("6. 随时凭反馈码在本页底部查询处理进度与管理员回复；也可把反馈码发到粉丝群（QQ 群：615523002）。",
+                 "6. Use the code at the bottom of this page to check status and the admin reply anytime; you can also share it in the fan group (QQ 615523002)."));
         Line(L.S("· 提交频率限制：每 10 分钟 1 条、每天 10 条。反馈内容不会公开，仅用于定位和修复问题。",
                  "· Rate limits: 1 per 10 minutes, 10 per day. Feedback is private and used only for diagnosis."));
         Gap();
 
-        Heading(L.S("七、常见问题", "7. FAQ"));
+        Heading(L.S("七、神经渲染开关与死机自救（MSFS 路线）", "7. Neural-render switch & freeze recovery (MSFS routes)"));
+        Line(L.S("· MSFS 2024 / 2020 卡片底部的「神经渲染」开关直接读写游戏目录 OptiScaler.ini 的 [DlssNr] Enabled，",
+                 "· The \"Neural Render\" switch at the bottom of the MSFS 2024 / 2020 cards reads and writes [DlssNr] Enabled in the game folder's OptiScaler.ini —"));
+        Line(L.S("  与游戏内 Insert 菜单的开关等效，改写后下次启动游戏生效。",
+                 "  equivalent to the in-game Insert menu toggle; it applies on the next game launch."));
+        Line(L.S("· 爆显存死机自救：游戏死住时不要点错误弹窗的「确定」、不要碰游戏窗口，直接用任务管理器结束游戏进程，",
+                 "· If VRAM overflow freezes the game: do NOT click OK on the error dialog or touch the game window — kill the game process in Task Manager,"));
+        Line(L.S("  然后回到本工具把该卡片的「神经渲染」开关关闭，再次启动游戏就不会在加载阶段满负荷，进入飞行后再开启。",
+                 "  then turn the card's \"Neural Render\" switch off here and relaunch the game — it will no longer run at full load while loading. Re-enable in flight."));
+        Line(L.S("· 降低显存压力：调低设置页的 WorkingScale 与游戏内 Upscale Ratio，关闭 External FG / MFG Unlock 等实验选项。",
+                 "· To reduce VRAM pressure: lower WorkingScale (Settings) and the in-game Upscale Ratio, and turn off External FG / MFG Unlock experimental options."));
+        Gap();
+
+        Heading(L.S("八、常见问题", "8. FAQ"));
         Line(L.S("· 开 DLSS5 后游戏爆显存崩溃（DXGI_ERROR_DEVICE_REMOVED / 提示资源使用超出GPU内存容量）：",
                  "· Game crashes with VRAM overflow while DLSS5 is on (DXGI_ERROR_DEVICE_REMOVED / \"resources exceed GPU memory\" toast):"));
         Line(L.S("  8GB 显存显卡属高发。解决：设置页把 WorkingScale 降到 0.5（或 0.35）后重装，",
                  "  common on 8GB cards. Fix: set WorkingScale to 0.5 (or 0.35) in Settings and reinstall,"));
         Line(L.S("  并在游戏内降低纹理/地形分辨率；安装器已按显存自动推荐 WorkingScale。",
                  "  and lower texture/terrain resolution in game. The installer now auto-recommends WorkingScale by VRAM."));
+        Line(L.S("  也可以先在主页把「神经渲染」开关关闭（见上一节），待调低参数后再重新开启。",
+                 "  Alternatively switch \"Neural Render\" off on the home card (see previous section) and re-enable after tuning."));
         Line(L.S("· 提示「驱动过低」：DLSS5 神经渲染 runtime 要求驱动 ≥ 616.56，先升级驱动。",
                  "· \"Driver too old\": the DLSS5 neural-render runtime needs driver ≥ 616.56 — update first."));
         Line(L.S("· 提示「游戏文件被占用」：游戏未完全关闭或有崩溃残留进程，重启电脑后重试。",

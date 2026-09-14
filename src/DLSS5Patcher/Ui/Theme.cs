@@ -428,6 +428,77 @@ public static class Theme
         }
     }
 
+    /// <summary>
+    /// 拨动开关（iOS 风格轨道 + 圆形滑块）：开 = 信号绿，关 = 深底灰边。
+    /// 文字绘制在轨道左侧；点击整块切换。
+    /// </summary>
+    public sealed class GlassSwitch : Control
+    {
+        private bool _checked;
+        private bool _hover;
+
+        public bool Checked
+        {
+            get => _checked;
+            set { _checked = value; Invalidate(); CheckedChanged?.Invoke(this, EventArgs.Empty); }
+        }
+
+        /// <summary>编程式设置（不触发 CheckedChanged，供刷新状态用）。</summary>
+        public void SetCheckedSilent(bool value)
+        {
+            if (_checked == value) return;
+            _checked = value;
+            Invalidate();
+        }
+
+        public event EventHandler? CheckedChanged;
+
+        public GlassSwitch()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+            Font = new Font(FontUi, 9f);
+            Size = new Size(120, 22);
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnClick(EventArgs e) { _checked = !_checked; Invalidate(); CheckedChanged?.Invoke(this, EventArgs.Empty); base.OnClick(e); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            // 文字（轨道左侧）
+            var textW = string.IsNullOrEmpty(Text) ? 0 : TextRenderer.MeasureText(Text, Font).Width + 6;
+            if (textW > 0)
+                TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(0, 0, textW, Height),
+                    Checked ? Signal : TextSecondary,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+
+            // 轨道
+            int tw = 40, th = 20;
+            var track = new Rectangle(Width - tw, Height / 2 - th / 2, tw, th);
+            using (var path = RoundedPath(track, th / 2))
+            {
+                using var fill = new SolidBrush(Checked ? SignalBg : _hover ? SurfaceHover : Surface);
+                e.Graphics.FillPath(fill, path);
+                using var pen = new Pen(Checked ? SignalBorder : _hover ? BorderStrong : FromHex("#4a4b44"));
+                e.Graphics.DrawPath(pen, path);
+            }
+
+            // 滑块
+            int d = th - 6;
+            var thumb = new Rectangle(Checked ? track.Right - d - 3 : track.X + 3, Height / 2 - d / 2, d, d);
+            using (var path = RoundedPath(thumb, d / 2))
+            {
+                using var fill = new SolidBrush(Checked ? Signal : FromHex("#82857a"));
+                e.Graphics.FillPath(fill, path);
+            }
+        }
+    }
+
     /// <summary>下拉框黑绿化：扁平 + 深底 + 自绘项（选中项绿色信号底）。</summary>
     public static void StyleCombo(ComboBox cb)
     {

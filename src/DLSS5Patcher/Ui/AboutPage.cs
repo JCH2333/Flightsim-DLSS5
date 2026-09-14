@@ -13,6 +13,7 @@ public sealed class AboutPage : Theme.AmbientPage
     private const int ContentW = 790;
 
     private readonly ComboBox _cboScale = new();
+    private readonly Label _lblScaleHint = new();
     private readonly ComboBox _cboLang = new();
     private readonly Label _lblMsfsDir = new();
     private readonly Label _lblMsfs2020Dir = new();
@@ -99,6 +100,14 @@ public sealed class AboutPage : Theme.AmbientPage
         _cboScale.ForeColor = Theme.Text;
         Theme.StyleCombo(_cboScale);
         card.Controls.Add(_cboScale);
+
+        _lblScaleHint.AutoSize = false;
+        _lblScaleHint.Size = new Size(370, 16);
+        _lblScaleHint.Location = new Point(430, 66);
+        _lblScaleHint.ForeColor = Theme.Warning;
+        _lblScaleHint.Font = new Font(Theme.FontUi, 8.25f);
+        card.Controls.Add(_lblScaleHint);
+        _cboScale.SelectedIndexChanged += (_, _) => RefreshScaleHint();
 
         var hint = Theme.MakeLabel(
             L.S("安装选项在点击各游戏卡片「一键安装」时生效。", "Install options apply when you click Install on a game card."),
@@ -355,6 +364,25 @@ public sealed class AboutPage : Theme.AmbientPage
     {
         var idx = _cboScale.Items.IndexOf(scale);
         if (idx >= 0) _cboScale.SelectedIndex = idx;
+    }
+
+    /// <summary>设置页 WorkingScale 与已安装值不一致时提示「需重新安装生效」（刷新与变更时调用）。</summary>
+    public void RefreshScaleHint()
+    {
+        try
+        {
+            var m = Core.UnlockedInstaller.LoadManifest();
+            if (m == null) { _lblScaleHint.Text = ""; return; }
+            if (string.Equals(m.WorkingScale, WorkingScale, StringComparison.Ordinal))
+            {
+                _lblScaleHint.Text = "";
+                return;
+            }
+            _lblScaleHint.Text = L.S(
+                $"已安装为 {m.WorkingScale}；此处修改后需重新安装才会生效",
+                $"Installed at {m.WorkingScale}; reinstall to apply the change");
+        }
+        catch { _lblScaleHint.Text = ""; }
     }
 
     private static void OpenUrl(string url)

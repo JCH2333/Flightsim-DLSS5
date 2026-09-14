@@ -16,6 +16,8 @@ public sealed class HomePage : Theme.AmbientPage
     public event Action? Msfs2020UninstallRequested;
     public event Action? XpInstallRequested;
     public event Action? XpUninstallRequested;
+    /// <summary>用户拨动 MSFS 卡片上的神经渲染开关（参数：卡片序号，true=开启）。</summary>
+    public event Action<int, bool>? NrToggleRequested;
 
     public const int CardMsfs2024 = 0;
     public const int CardMsfs2020 = 1;
@@ -37,6 +39,9 @@ public sealed class HomePage : Theme.AmbientPage
     private readonly Panel[] _progressTrack = new Panel[4];
     private readonly Label[] _progressFill = new Label[4];
     private readonly Label[] _progressLabels = new Label[4];
+    private readonly Theme.GlassSwitch[] _nrSwitch = new Theme.GlassSwitch[4];
+    private readonly bool[] _nrDesiredVisible = new bool[4];
+    private bool _busy;
     private Theme.GlassButton _btnRefresh = new();
 
     public HomePage()
@@ -222,6 +227,22 @@ public sealed class HomePage : Theme.AmbientPage
         _allButtons.Add(btnUninstall);
         strip.Controls.Add(btnUninstall);
 
+        // OptiScaler 路线（MSFS 2024 / 2020）：条内左侧放「神经渲染」开关，
+        // 直接读写游戏目录 OptiScaler.ini 的 [DlssNr] Enabled（爆显存死机时的自救开关）
+        if (idx == CardMsfs2024 || idx == CardMsfs2020)
+        {
+            var sw = new Theme.GlassSwitch
+            {
+                Text = L.S("神经渲染", "Neural Render"),
+                Size = new Size(132, 22),
+                Location = new Point(20, 10),
+                ForeColor = Theme.TextSecondary,
+            };
+            sw.CheckedChanged += (_, _) => NrToggleRequested?.Invoke(idx, sw.Checked);
+            _nrSwitch[idx] = sw;
+            strip.Controls.Add(sw);
+        }
+
         Controls.Add(card);
     }
 
@@ -254,10 +275,26 @@ public sealed class HomePage : Theme.AmbientPage
         _btnUninstall[idx].Enabled = canUninstall;
     }
 
+    /// <summary>更新神经渲染开关（visible=false 表示未安装/无法读取，开关隐藏）；不触发用户切换事件。</summary>
+    public void SetNrSwitch(int idx, bool visible, bool on)
+    {
+        var sw = _nrSwitch[idx];
+        if (sw == null) return;
+        _nrDesiredVisible[idx] = visible;
+        sw.SetCheckedSilent(on);
+        sw.Visible = visible && !_busy;
+    }
+
     /// <summary>忙碌时禁用全部按钮并显示状态；结束时恢复「重新检测」。</summary>
     public void SetBusy(bool busy, string? status = null)
     {
         if (InvokeRequired) { BeginInvoke(() => SetBusy(busy, status)); return; }
+        _busy = busy;
+        for (int i = 0; i < 4; i++)
+        {
+            if (_nrSwitch[i] != null)
+                _nrSwitch[i].Visible = !busy && _nrDesiredVisible[i];   // 忙时隐藏：进度轨会覆盖此处
+        }
         if (busy)
         {
             foreach (var b in _allButtons)

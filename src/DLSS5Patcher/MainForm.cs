@@ -346,6 +346,7 @@ public sealed class MainForm : Theme.DpiScaledForm
         _about.Msfs2020BrowseRequested += () => BrowseForGame(1);
         _about.XpBrowseRequested += () => BrowseForGame(2);
         _about.XpPickKitRequested += PickKitDir;
+        _home.NrToggleRequested += NrToggle;
         _about.CheckUpdateRequested += () => _ = RunUpdateCheckAsync(startup: false);
         _about.ViewAgreementRequested += () =>
         {
@@ -518,6 +519,7 @@ public sealed class MainForm : Theme.DpiScaledForm
             _home.SetChecks(string.Join(Environment.NewLine, checks), checks.All(c => c.StartsWith('✔')));
 
             if (_gpu.SupportedThisVersion) _about.SetRecommendedScale(_gpu.RecommendedWorkingScale);
+            _about.RefreshScaleHint();
 
             _about.SetManualPaths(
                 _game2024 != null ? $"{_game2024.GameDir}   [{_game2024.Source}]" : L.S("未检测到（可点击右侧按钮指定游戏主程序）", "Not detected (use the button on the right to pick the game executable)"),
@@ -545,6 +547,7 @@ public sealed class MainForm : Theme.DpiScaledForm
                 L.S("未检测到安装。可在设置页「手动配置」中手动指定游戏目录。",
                     "No installation detected. You can set the game folder under \"Manual setup\" in Settings."),
                 canInstall: false, canUninstall: false);
+            _home.SetNrSwitch(HomePage.CardMsfs2024, visible: false, on: false);
             return;
         }
 
@@ -558,6 +561,7 @@ public sealed class MainForm : Theme.DpiScaledForm
             (File.Exists(Path.Combine(_game2024.GameDir, "OptiScaler.ini")) || UnlockedInstaller.LoadManifest() != null);
         _home.SetCard(HomePage.CardMsfs2024, stateText,
             $"{_game2024.GameDir}   [{_game2024.Source}]", canInstall, canUninstall);
+        UpdateNrSwitch(HomePage.CardMsfs2024, _game2024);
     }
 
     private void UpdateMsfs2020Card()
@@ -569,6 +573,7 @@ public sealed class MainForm : Theme.DpiScaledForm
                 L.S("未检测到安装。可在设置页「手动配置」中手动指定游戏目录。",
                     "No installation detected. You can set the game folder under \"Manual setup\" in Settings."),
                 canInstall: false, canUninstall: false);
+            _home.SetNrSwitch(HomePage.CardMsfs2020, visible: false, on: false);
             return;
         }
 
@@ -582,6 +587,37 @@ public sealed class MainForm : Theme.DpiScaledForm
             (File.Exists(Path.Combine(_game2020.GameDir, "OptiScaler.ini")) || UnlockedInstaller.LoadManifest() != null);
         _home.SetCard(HomePage.CardMsfs2020, stateText,
             $"{_game2020.GameDir}   [{_game2020.Source}]", canInstall, canUninstall);
+        UpdateNrSwitch(HomePage.CardMsfs2020, _game2020);
+    }
+
+    /// <summary>按游戏目录中 OptiScaler.ini 的实际状态刷新「神经渲染」开关（未安装则隐藏）。</summary>
+    private void UpdateNrSwitch(int cardIdx, GameInstall? game)
+    {
+        if (game == null || !UnlockedInstaller.TryGetNrEnabled(game.GameDir, out var on))
+        {
+            _home.SetNrSwitch(cardIdx, visible: false, on: false);
+            return;
+        }
+        _home.SetNrSwitch(cardIdx, visible: true, on);
+    }
+
+    /// <summary>用户拨动主页「神经渲染」开关：改写 OptiScaler.ini 的 [DlssNr] Enabled。</summary>
+    private void NrToggle(int cardIdx, bool enable)
+    {
+        var g = cardIdx switch { 0 => _game2024, 1 => _game2020, _ => null };
+        if (g == null || !UnlockedInstaller.SetNrEnabled(g.GameDir, enable))
+        {
+            AppLog.Warn($"神经渲染开关写入失败（{g?.GameDir}）");
+            UpdateNrSwitch(cardIdx, g);   // 写失败：回读真实状态校正开关显示
+            MessageBox.Show(this,
+                L.S("写入 OptiScaler.ini 失败：文件可能被占用或权限受限，稍后重试。",
+                    "Failed to write OptiScaler.ini: the file may be locked or access-restricted. Try again shortly."),
+                L.S("错误", "Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        AppLog.Info($"神经渲染开关：{g.GameDir} → Enabled={enable.ToString().ToLower()}");
+        Log(L.S($"神经渲染已{(enable ? "开启" : "关闭")}（下次启动游戏生效）",
+                $"Neural rendering {(enable ? "enabled" : "disabled")} (applies on next game launch)"));
     }
 
     /// <summary>XP12 组件包状态文案（手动覆盖目录优先显示，否则显示缓存状态）。</summary>
