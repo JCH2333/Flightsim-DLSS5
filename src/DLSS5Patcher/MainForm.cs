@@ -616,8 +616,8 @@ public sealed class MainForm : Theme.DpiScaledForm
             return;
         }
         AppLog.Info($"神经渲染开关：{g.GameDir} → Enabled={enable.ToString().ToLower()}");
-        Log(L.S($"神经渲染已{(enable ? "开启" : "关闭")}（下次启动游戏生效）",
-                $"Neural rendering {(enable ? "enabled" : "disabled")} (applies on next game launch)"));
+        Log(L.S($"DLSS5 滤镜已{(enable ? "开启" : "关闭")}（下次启动游戏生效）",
+                $"DLSS5 filter {(enable ? "enabled" : "disabled")} (applies on next game launch)"));
     }
 
     /// <summary>XP12 组件包状态文案（手动覆盖目录优先显示，否则显示缓存状态）。</summary>

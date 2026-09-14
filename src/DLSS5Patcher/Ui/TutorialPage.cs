@@ -150,15 +150,15 @@ public sealed class TutorialPage : Theme.AmbientPage
                  "· Rate limits: 1 per 10 minutes, 10 per day. Feedback is private and used only for diagnosis."));
         Gap();
 
-        Heading(L.S("七、神经渲染开关与死机自救（MSFS 路线）", "7. Neural-render switch & freeze recovery (MSFS routes)"));
-        Line(L.S("· MSFS 2024 / 2020 卡片底部的「神经渲染」开关直接读写游戏目录 OptiScaler.ini 的 [DlssNr] Enabled，",
-                 "· The \"Neural Render\" switch at the bottom of the MSFS 2024 / 2020 cards reads and writes [DlssNr] Enabled in the game folder's OptiScaler.ini —"));
+        Heading(L.S("七、DLSS5 滤镜开关与死机自救（MSFS 路线）", "7. DLSS5 filter switch & freeze recovery (MSFS routes)"));
+        Line(L.S("· MSFS 2024 / 2020 卡片底部的「DLSS5 滤镜开关」直接读写游戏目录 OptiScaler.ini 的 [DlssNr] Enabled，",
+                 "· The \"DLSS5 filter switch\" at the bottom of the MSFS 2024 / 2020 cards reads and writes [DlssNr] Enabled in the game folder's OptiScaler.ini —"));
         Line(L.S("  与游戏内 Insert 菜单的开关等效，改写后下次启动游戏生效。",
                  "  equivalent to the in-game Insert menu toggle; it applies on the next game launch."));
         Line(L.S("· 爆显存死机自救：游戏死住时不要点错误弹窗的「确定」、不要碰游戏窗口，直接用任务管理器结束游戏进程，",
                  "· If VRAM overflow freezes the game: do NOT click OK on the error dialog or touch the game window — kill the game process in Task Manager,"));
-        Line(L.S("  然后回到本工具把该卡片的「神经渲染」开关关闭，再次启动游戏就不会在加载阶段满负荷，进入飞行后再开启。",
-                 "  then turn the card's \"Neural Render\" switch off here and relaunch the game — it will no longer run at full load while loading. Re-enable in flight."));
+        Line(L.S("  然后回到本工具把该卡片的「DLSS5 滤镜开关」关闭，再次启动游戏就不会在加载阶段满负荷，进入飞行后再开启。",
+                 "  then turn the card's \"DLSS5 filter switch\" off here and relaunch the game — it will no longer run at full load while loading. Re-enable in flight."));
         Line(L.S("· 降低显存压力：调低设置页的 WorkingScale 与游戏内 Upscale Ratio，关闭 External FG / MFG Unlock 等实验选项。",
                  "· To reduce VRAM pressure: lower WorkingScale (Settings) and the in-game Upscale Ratio, and turn off External FG / MFG Unlock experimental options."));
         Gap();
@@ -170,8 +170,8 @@ public sealed class TutorialPage : Theme.AmbientPage
                  "  common on 8GB cards. Fix: set WorkingScale to 0.5 (or 0.35) in Settings and reinstall,"));
         Line(L.S("  并在游戏内降低纹理/地形分辨率；安装器已按显存自动推荐 WorkingScale。",
                  "  and lower texture/terrain resolution in game. The installer now auto-recommends WorkingScale by VRAM."));
-        Line(L.S("  也可以先在主页把「神经渲染」开关关闭（见上一节），待调低参数后再重新开启。",
-                 "  Alternatively switch \"Neural Render\" off on the home card (see previous section) and re-enable after tuning."));
+        Line(L.S("  也可以先在主页把「DLSS5 滤镜开关」关闭（见上一节），待调低参数后再重新开启。",
+                 "  Alternatively switch the \"DLSS5 filter\" off on the home card (see previous section) and re-enable after tuning."));
         Line(L.S("· 提示「驱动过低」：DLSS5 神经渲染 runtime 要求驱动 ≥ 616.56，先升级驱动。",
                  "· \"Driver too old\": the DLSS5 neural-render runtime needs driver ≥ 616.56 — update first."));
         Line(L.S("· 提示「游戏文件被占用」：游戏未完全关闭或有崩溃残留进程，重启电脑后重试。",

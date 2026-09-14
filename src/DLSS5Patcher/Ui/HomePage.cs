@@ -233,7 +233,7 @@ public sealed class HomePage : Theme.AmbientPage
         {
             var sw = new Theme.GlassSwitch
             {
-                Text = L.S("神经渲染开关", "Neural Render"),
+                Text = L.S("DLSS5 滤镜开关", "DLSS5 Filter Switch"),
                 TrackScale = 1.3f,
                 Size = new Size(196, 34),
                 Location = new Point(ContentW - 124 - 110 - 12 - 16 - 196 - 12, 4),
