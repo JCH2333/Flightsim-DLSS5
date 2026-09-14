@@ -96,6 +96,7 @@ public sealed class AgreementDialog : Theme.DpiScaledForm
         Controls.Add(_btnDecline);
 
         _btnAgree.Primary = true;
+        _btnAgree.Text = L.S("同意并继续使用", "Agree && Continue");   // 首次运行路径 UpdateButtons 不设置文案，必须在此赋值
         _btnAgree.Size = new Size(240, 42);
         _btnAgree.Location = new Point(620 - 240 - 30, 570);
         _btnAgree.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
@@ -117,7 +118,10 @@ public sealed class AgreementDialog : Theme.DpiScaledForm
             Theme.ApplyWindowChrome(this);
             SwitchTab(0);   // 先填充正文
             float s = DeviceDpi / 96f;   // 此刻布局已完成缩放，指示条几何须按当前 DPI 换算
-            _bars[0] = Theme.AttachScrollIndicator(_text, this, rightInset: (int)(30 * s), topInset: (int)(152 * s), height: (int)(360 * s), dpiScale: s);
+            _bars[0] = Theme.AttachScrollIndicator(_text, this, rightInset: 30, topInset: 152, height: 360, dpiScale: s);
+            // 以 _text 的真实矩形为准强制定位（防挂载时机/缩放状态不一致导致滑块越界）
+            _bars[0].SetBounds(_text.Right - (int)(12 * s), _text.Top, (int)(12 * s),
+                Math.Min(_text.Height, ClientSize.Height - _text.Top));
             _bars[0].ReachedBottom += () => MarkRead(_active);   // 当前页签滚动到底 → 已读
             UpdateButtons();
         };
