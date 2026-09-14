@@ -1,3 +1,4 @@
+using DLSS5Patcher.Core;
 using System.Runtime.InteropServices;
 
 namespace DLSS5Patcher.Ui;
@@ -454,7 +455,14 @@ public static class Theme
     /// ScrollBars.None 的 RichEdit 上返回的数值不可靠，且 EM_LINESCROLL 不触发 VScroll 事件，
     /// 所以每次滚动后都显式调用 UpdateThumb。
     /// </summary>
-    public sealed class ScrollIndicator : Panel
+    /// <summary>滚轮路由的滚动目标：正数向下滚（ScrollIndicator 按行、页面级滚动条按像素）。
+    /// 返回 true 表示确实滚动了（消息被消费）；false 时路由继续尝试下一个目标。</summary>
+    public interface IWheelScrollTarget
+    {
+        bool ScrollLines(int lines);
+    }
+
+    public sealed class ScrollIndicator : Panel, IWheelScrollTarget
     {
         private readonly RichTextBox _rtb;
         private readonly Panel _fill = new();
@@ -521,13 +529,14 @@ public static class Theme
             }
         }
 
-        /// <summary>滚轮路由调用：按行滚动并立即刷新滑块。</summary>
-        public void ScrollLines(int lines)
+        /// <summary>滚轮路由调用：按行滚动并立即刷新滑块。返回是否真的滚动了。</summary>
+        public bool ScrollLines(int lines)
         {
-            if (!_rtb.IsHandleCreated || lines == 0 || LineCount <= VisibleLines) return;
+            if (!_rtb.IsHandleCreated || lines == 0 || LineCount <= VisibleLines) return false;
             SendMessage(_rtb.Handle, EM_LINESCROLL, IntPtr.Zero, (IntPtr)lines);
             _userScrolled = true;
             UpdateThumb();
+            return true;
         }
 
         private void DragTo(int y)
@@ -600,7 +609,7 @@ public static class Theme
         public static readonly WheelRouter Default = new();
         private static bool _installed;
 
-        private readonly List<(Control Host, ScrollIndicator Bar)> _pairs = new();
+        private readonly List<(Control Host, IWheelScrollTarget Target)> _pairs = new();
         private WheelRouter() { }
 
         public static void Install()
@@ -610,7 +619,7 @@ public static class Theme
             _installed = true;
         }
 
-        public void Register(Control host, ScrollIndicator bar) => _pairs.Add((host, bar));
+        public void Register(Control host, IWheelScrollTarget target) => _pairs.Add((host, target));
 
         public bool PreFilterMessage(ref Message m)
         {
@@ -622,17 +631,92 @@ public static class Theme
             var active = Form.ActiveForm;
 
             var pos = Cursor.Position;
-            foreach (var (host, bar) in _pairs)
+            foreach (var (host, target) in _pairs)
             {
                 if (!host.Visible || !host.IsHandleCreated) continue;
                 if (active != null && host.FindForm() != active) continue;
                 if (!host.RectangleToScreen(host.ClientRectangle).Contains(pos)) continue;
+                // 各页面靠 z 序叠放（都 Visible），必须确认宿主在光标处确实处于最上层，
+                // 否则滚轮会被背后页面的宿主抢先吞掉（表现为目标页面滚不动）。
+                if (!IsTopmostAt(host, pos)) continue;
 
                 int raw = (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);   // 滚轮刻度（有符号短整型）
-                bar.ScrollLines(-Math.Sign(raw) * 5);                     // 上滚为正 → 向上滚
-                return true;   // 吞掉滚轮消息，避免它落到焦点控件上
+                if (target.ScrollLines(-Math.Sign(raw) * 5))              // 上滚为正 → 向上滚
+                    return true;   // 消费滚轮消息，避免它落到焦点控件上
+                // 该目标已到边界/不可滚 → 继续尝试下一个目标（如页面级滚动）
             }
             return false;
+        }
+
+        /// <summary>宿主在光标处是否未被任何更高 z 序的兄弟子树遮挡（逐层向上检查，直到窗体顶层）。</summary>
+        private static bool IsTopmostAt(Control host, Point screen)
+        {
+            Control node = host;
+            while (node.Parent != null)
+            {
+                var parent = node.Parent;
+                if (!node.Visible) return false;
+                if (!node.RectangleToScreen(node.ClientRectangle).Contains(screen)) return false;
+                foreach (Control sib in parent.Controls)   // Controls 集合按 z 序：索引 0 在最上
+                {
+                    if (ReferenceEquals(sib, node)) break;   // 本层通过；继续向上验证父级链
+                    if (sib.Visible && sib.RectangleToScreen(sib.ClientRectangle).Contains(screen)) return false;
+                }
+                node = parent;
+            }
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 跨显示器拖动窗口（PerMonitorV2 DPI 变化）时，RichEdit 会丢失全部逐字符颜色——
+    /// 教程/公告文字因此变成黑色。本控件在内容构建完成后调用 SaveSnapshot() 留一份干净的 RTF，
+    /// 之后每逢 DPI/字体变化（事件后延迟执行）把快照原样还原。RTF 字号是逻辑磅值，新 DPI 下渲染依旧正确。
+    /// </summary>
+    public sealed class DpiSafeRichTextBox : RichTextBox
+    {
+        private string? _snapshot;
+        private bool _restoring;
+
+        /// <summary>内容排版完成后调用：以当前内容作为"标准版本"，DPI 变化丢失颜色时用它还原。</summary>
+        public void SaveSnapshot()
+        {
+            try { if (TextLength > 0) _snapshot = Rtf; } catch { }
+        }
+
+        private void RestoreSnapshot()
+        {
+            if (_restoring || _snapshot == null || !IsHandleCreated) return;
+            _restoring = true;
+            try
+            {
+                if (Rtf != _snapshot)
+                {
+                    Rtf = _snapshot;
+                    SelectionStart = 0;
+                    SelectionLength = 0;
+                }
+            }
+            catch { }
+            finally { _restoring = false; }
+        }
+
+        private void RestoreLater()
+        {
+            if (_snapshot == null || !IsHandleCreated) return;
+            _ = BeginInvoke(new Action(RestoreSnapshot));   // 等 WinForms 的缩放/重排全部落定后再还原
+        }
+
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            RestoreLater();
+        }
+
+        protected override void OnDpiChangedAfterParent(EventArgs e)
+        {
+            base.OnDpiChangedAfterParent(e);
+            RestoreLater();
         }
     }
 

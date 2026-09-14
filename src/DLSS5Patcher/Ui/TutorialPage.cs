@@ -5,7 +5,7 @@ namespace DLSS5Patcher.Ui;
 /// <summary>教程页：安装/使用说明 + 出问题时应向作者提交的文件清单。</summary>
 public sealed class TutorialPage : Theme.AmbientPage
 {
-    private readonly RichTextBox _rtb = new();
+    private readonly Theme.DpiSafeRichTextBox _rtb = new();
 
     public TutorialPage()
     {
@@ -39,6 +39,7 @@ public sealed class TutorialPage : Theme.AmbientPage
         _rtb.SelectionStart = 0;
         _rtb.SelectionLength = 0;
         _rtb.ScrollToCaret();
+        _rtb.SaveSnapshot();   // 留干净快照：跨屏拖动导致 RichEdit 丢色时还原
     }
 
     private void Add(string text, Color color, float size = 9f, bool bold = false)

@@ -8,7 +8,7 @@ namespace DLSS5Patcher.Ui;
 /// </summary>
 public sealed class AnnouncementsPage : Theme.AmbientPage
 {
-    private readonly RichTextBox _list = new();
+    private readonly Theme.DpiSafeRichTextBox _list = new();
     private readonly Label _lblState = new();
     private readonly Theme.GlassButton _btnReload = new();
     private readonly Panel _card;
@@ -152,5 +152,6 @@ public sealed class AnnouncementsPage : Theme.AmbientPage
         _list.SelectionStart = 0;
         _list.SelectionLength = 0;
         _list.ScrollToCaret();
+        _list.SaveSnapshot();   // 留干净快照：跨屏拖动导致 RichEdit 丢色时还原
     }
 }

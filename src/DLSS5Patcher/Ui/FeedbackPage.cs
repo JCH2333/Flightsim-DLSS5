@@ -1,19 +1,22 @@
+using System.Diagnostics;
 using DLSS5Patcher.Core;
 using Microsoft.Win32;
 
 namespace DLSS5Patcher.Ui;
 
 /// <summary>
-/// 问题反馈页（同 GSX 汉化）：自动识别环境（显卡/驱动/系统），勾选出问题的游戏后自动扫描可附加的日志文件，
-/// 填写问题描述与可选用户名（留空匿名）并附截图提交；提交后取得反馈码，可随时在底部查询处理进度与管理员回复。
+/// 问题反馈页（同 GSX 汉化）：环境自动识别 + 勾选游戏附加日志 + 问题描述与可选用户名（留空匿名）+ 截图，
+/// 提交后取得反馈码并自动复制到剪贴板，页面自动滚到底部的"查询反馈进度"面板引导用户查询。
+/// 内容高度 930 超出视口（800），沿用使用教程的翻页机制：滚轮悬停即滚 + 右侧细滑块拖动。
 /// 截图 ≤4 张、每张 ≤8MB、每 IP 每天 10 条 / 每 10 分钟 1 条为本项目自有设置；查询限流每天 60 次由服务端执行。
 /// </summary>
-public sealed class FeedbackPage : UserControl
+public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
 {
     private const int MaxShots = 4;
     private const long MaxShotBytes = 8 * 1024 * 1024;
     private const int MaxDescChars = 4000;
     private const int MaxUsernameChars = 50;
+    private const int ContentH = 930;   // 滚动内容总高（设计像素），视口 800
 
     private GpuInfo _gpu = new("", "", GpuGeneration.Unknown);
     private GameInstall? _g24, _g20, _gxp;
@@ -22,6 +25,11 @@ public sealed class FeedbackPage : UserControl
     private bool _submitted;
     private bool _querying;
     private string _lastCode = "";
+
+    private readonly Panel _scrollContent = new();
+    private PageBar _pageBar = new();
+    private System.Windows.Forms.Timer? _scrollTimer;
+    private int _scrollY;   // 当前滚动偏移（物理像素，向下为正）
 
     private readonly Label _lblApp = new();
     private readonly Label _lblOs = new();
@@ -53,39 +61,172 @@ public sealed class FeedbackPage : UserControl
         BackColor = Theme.Bg;
         Size = new Size(862, 800);
 
-        Controls.Add(Theme.MakePageHeader(L.S("FEEDBACK", "FEEDBACK"), L.S("问题反馈", "Feedback")));
+        _scrollContent.Location = new Point(0, 0);
+        _scrollContent.Size = new Size(862, ContentH);
+        _scrollContent.BackColor = Theme.Bg;
+        Controls.Add(_scrollContent);
 
-        // 紧凑单屏布局：总高 792 ≤ 页面 800，无需滚动（窗口固定尺寸且不可滚动）
-        BuildEnvCard(100);
+        _scrollContent.Controls.Add(Theme.MakePageHeader(L.S("FEEDBACK", "FEEDBACK"), L.S("问题反馈", "Feedback")));
+        BuildEnvCard(96);
         BuildGamesCard(204);
-        BuildLogsCard(264);
-        BuildDescCard(396);
-        BuildShotsCard(544);
-        BuildSubmitRow(636);
-        BuildQueryCard(680);
+        BuildLogsCard(268);
+        BuildDescCard(416);
+        BuildShotsCard(600);
+        BuildSubmitRow(702);
+        BuildQueryCard(758);
+
+        // 页面级滚动条：外观与教程滑块一致，固定在视口右缘（后注册 → 悬停卡片内的富文本框/日志列表时优先滚它们）
+        _pageBar.SetBounds(836, 6, 12, 788);
+        _pageBar.Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom;
+        _pageBar.DragScroll += y => ScrollTo(y);
+        Controls.Add(_pageBar);
+        _pageBar.BringToFront();
+        Theme.WheelRouter.Default.Register(_lstLogs, new ListBoxWheel(_lstLogs));   // 悬停日志列表优先滚列表
+        Theme.WheelRouter.Default.Register(this, this);
+
+        SizeChanged += (_, _) => ScrollTo(_scrollY);
+    }
+
+    /// <summary>CheckedListBox 无焦点时收不到滚轮；挂成路由目标后悬停即滚（到底后路由会放行给页面）。</summary>
+    private sealed class ListBoxWheel : Theme.IWheelScrollTarget
+    {
+        private readonly CheckedListBox _lb;
+        public ListBoxWheel(CheckedListBox lb) { _lb = lb; }
+
+        public bool ScrollLines(int lines)
+        {
+            if (_lb.Items.Count == 0 || !_lb.Visible) return false;
+            int max = Math.Max(0, _lb.Items.Count - 1);
+            int next = Math.Clamp(_lb.TopIndex + lines, 0, max);
+            if (next == _lb.TopIndex) return false;
+            _lb.TopIndex = next;
+            return true;
+        }
+    }
+
+    // ───────────────────────────── 页面滚动（同教程：滚轮 + 右侧细滑块） ─────────────────────────────
+
+    private int MaxScroll => Math.Max(0, ContentH * DeviceDpi / 96 - ClientSize.Height);
+
+    /// <summary>WheelRouter 调用：按"行"滚动（1 行 ≈ 20 设计像素），正数向下。返回是否真的滚动了。</summary>
+    public bool ScrollLines(int lines)
+    {
+        int before = _scrollY;
+        ScrollTo(before + lines * (20 * DeviceDpi / 96));
+        return _scrollY != before;
+    }
+
+    private void ScrollTo(int y)
+    {
+        _scrollY = Math.Clamp(y, 0, MaxScroll);
+        _scrollContent.Location = new Point(0, -_scrollY);
+        _pageBar.UpdateThumb(_scrollY, MaxScroll, ClientSize.Height);
+    }
+
+    /// <summary>平滑滚动到目标位置（引导视线用，~240ms ease-out）。</summary>
+    private void AnimateScrollTo(int target)
+    {
+        target = Math.Clamp(target, 0, MaxScroll);
+        _scrollTimer?.Stop();
+        _scrollTimer?.Dispose();
+        _scrollTimer = null;
+        int start = _scrollY, delta = target - start;
+        if (delta == 0) return;
+        var sw = Stopwatch.StartNew();
+        _scrollTimer = new System.Windows.Forms.Timer { Interval = 15 };
+        _scrollTimer.Tick += (_, _) =>
+        {
+            double t = Math.Min(1.0, sw.ElapsedMilliseconds / 240.0);
+            double ease = 1 - Math.Pow(1 - t, 3);
+            ScrollTo((int)Math.Round(start + delta * ease));
+            if (t >= 1)
+            {
+                _scrollTimer?.Stop();
+                _scrollTimer?.Dispose();
+                _scrollTimer = null;
+            }
+        };
+        _scrollTimer.Start();
+    }
+
+    /// <summary>页面级细滚动条：视觉与 Theme.ScrollIndicator 相同（4px 轨道/滑块），按像素定位。</summary>
+    private sealed class PageBar : Panel
+    {
+        private readonly Panel _fill = new();
+        private int _offset, _max, _viewport;
+        private bool _dragging;
+
+        public event Action<int>? DragScroll;   // 参数 = 滑块目标偏移（物理像素）
+
+        public PageBar()
+        {
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+            SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer
+                     | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+            _fill.BackColor = Theme.Signal;
+            _fill.Visible = false;
+            Controls.Add(_fill);
+            MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) { _dragging = true; Drag(e.Y); } };
+            MouseMove += (_, e) => { if (_dragging) Drag(e.Y); };
+            MouseUp += (_, e) => { if (e.Button == MouseButtons.Left) _dragging = false; };
+            MouseLeave += (_, _) => _dragging = false;
+        }
+
+        public void UpdateThumb(int offset, int max, int viewport)
+        {
+            _offset = offset; _max = max; _viewport = viewport;
+            if (max <= 0)
+            {
+                _fill.Visible = false;
+                Invalidate();
+                return;
+            }
+            int thumbH = Math.Max(24, Height * viewport / (viewport + max));
+            int top = (Height - thumbH) * offset / max;
+            _fill.Visible = true;
+            _fill.SetBounds(0, Math.Clamp(top, 0, Height - thumbH), 4, thumbH);
+        }
+
+        private void Drag(int y)
+        {
+            if (_max <= 0) return;
+            int thumbH = Math.Max(24, Height * _viewport / (_viewport + _max));
+            int rail = Height - thumbH;
+            if (rail <= 0) return;
+            double ratio = Math.Clamp((y - thumbH / 2.0) / rail, 0.0, 1.0);
+            DragScroll?.Invoke((int)Math.Round(ratio * _max));
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            using var track = new SolidBrush(Theme.FromHex("#353630"));
+            e.Graphics.FillRectangle(track, 0, 0, 4, Height);
+            base.OnPaint(e);
+        }
     }
 
     // ───────────────────────────── 环境信息 ─────────────────────────────
 
     private void BuildEnvCard(int y)
     {
-        var card = Theme.MakeCard(790, 96);
+        var card = Theme.MakeCard(790, 100);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(L.S("环境信息（自动识别）", "Environment (auto-detected)"), Theme.Text, 9.75f, bold: true);
-        head.Location = new Point(16, 6);
+        head.Location = new Point(16, 8);
         card.Controls.Add(head);
 
         // 双列：左=版本/系统，右=操作系统列；GPU 独占整行，游戏状态一行三项
-        AddEnvRow(card, L.S("程序版本：", "App version:"), _lblApp, 30, capX: 16, valX: 104, valW: 312);
-        AddEnvRow(card, L.S("操作系统：", "OS:"), _lblOs, 30, capX: 440, valX: 508, valW: 266);
-        AddEnvRow(card, L.S("显卡 / 驱动 / 显存：", "GPU / driver / VRAM:"), _lblGpu, 52, capX: 16, valX: 150, valW: 624);
+        AddEnvRow(card, L.S("程序版本：", "App version:"), _lblApp, 34, capX: 16, valX: 104, valW: 312);
+        AddEnvRow(card, L.S("操作系统：", "OS:"), _lblOs, 34, capX: 440, valX: 508, valW: 266);
+        AddEnvRow(card, L.S("显卡 / 驱动 / 显存：", "GPU / driver / VRAM:"), _lblGpu, 58, capX: 16, valX: 150, valW: 624);
 
         AddGameStateLabel(card, _lblG24, 16, 252);
         AddGameStateLabel(card, _lblG20, 290, 236);
         AddGameStateLabel(card, _lblGxp, 540, 234);
 
-        Controls.Add(card);
+        _scrollContent.Controls.Add(card);
     }
 
     private static void AddEnvRow(Panel card, string caption, Label value, int y, int capX, int valX, int valW)
@@ -107,7 +248,7 @@ public sealed class FeedbackPage : UserControl
     {
         lbl.AutoSize = false;
         lbl.Size = new Size(w, 18);
-        lbl.Location = new Point(x, 76);
+        lbl.Location = new Point(x, 80);
         lbl.ForeColor = Theme.TextMuted;
         lbl.Font = new Font("Microsoft YaHei UI", 8.5f);
         lbl.AutoEllipsis = true;
@@ -124,26 +265,26 @@ public sealed class FeedbackPage : UserControl
 
     private void BuildGamesCard(int y)
     {
-        var card = Theme.MakeCard(790, 52);
+        var card = Theme.MakeCard(790, 56);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(L.S("出问题的游戏（可多选，勾选后自动附加对应日志）：", "Affected game(s) (multi-select; related logs are attached automatically):"),
             Theme.Text, 9.75f, bold: true);
-        head.Location = new Point(16, 6);
+        head.Location = new Point(16, 8);
         card.Controls.Add(head);
 
         BuildCheck(_ck24, "MSFS 2024", 16, card);
         BuildCheck(_ck20, "MSFS 2020 (Beta)", 270, card);
         BuildCheck(_ckxp, "X-Plane 12", 560, card);
 
-        Controls.Add(card);
+        _scrollContent.Controls.Add(card);
     }
 
     private void BuildCheck(Theme.GlassCheck ck, string text, int x, Panel card)
     {
         ck.Text = text;
         ck.Size = new Size(TextRenderer.MeasureText(text, ck.Font).Width + 34, 24);
-        ck.Location = new Point(x, 22);
+        ck.Location = new Point(x, 26);
         ck.ForeColor = Theme.TextSecondary;
         ck.CheckedChanged += (_, _) => RescanLogs();
         card.Controls.Add(ck);
@@ -151,13 +292,13 @@ public sealed class FeedbackPage : UserControl
 
     private void BuildLogsCard(int y)
     {
-        var card = Theme.MakeCard(790, 124);
+        var card = Theme.MakeCard(790, 140);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
             L.S("将附加的日志文件（大文件自动只取末尾 256KB）：", "Log files to attach (oversized logs are truncated to the last 256 KB):"),
             Theme.Text, 9.75f, bold: true);
-        head.Location = new Point(16, 6);
+        head.Location = new Point(16, 8);
         card.Controls.Add(head);
 
         _lstLogs.CheckOnClick = true;
@@ -165,8 +306,8 @@ public sealed class FeedbackPage : UserControl
         _lstLogs.ForeColor = Theme.TextSecondary;
         _lstLogs.BorderStyle = BorderStyle.FixedSingle;
         _lstLogs.Font = new Font(Theme.FontUi, 8.5f);
-        _lstLogs.Size = new Size(758, 88);
-        _lstLogs.Location = new Point(16, 28);
+        _lstLogs.Size = new Size(758, 106);
+        _lstLogs.Location = new Point(16, 32);
         _lstLogs.IntegralHeight = false;
         // 自绘条目：绿勾选框替代系统蓝框
         _lstLogs.DrawMode = DrawMode.OwnerDrawFixed;
@@ -198,39 +339,24 @@ public sealed class FeedbackPage : UserControl
         };
         card.Controls.Add(_lstLogs);
 
-        Controls.Add(card);
+        _scrollContent.Controls.Add(card);
     }
 
     private void BuildDescCard(int y)
     {
-        var card = Theme.MakeCard(790, 140);
+        var card = Theme.MakeCard(790, 176);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
-            L.S("问题描述（必填）：什么现象、何时出现、如何复现", "Description (required): what happens, when, how to reproduce"),
+            L.S("问题描述（必填）：什么现象、何时出现、如何复现、游戏内设置等", "Description (required): what happens, when, how to reproduce, in-game settings..."),
             Theme.Text, 9.75f, bold: true);
         head.Location = new Point(16, 8);
         card.Controls.Add(head);
 
-        // 可选用户名（同 GSX：留空则匿名提交），放在标题行右侧
-        var userLbl = Theme.MakeLabel(L.S("用户名（选填）：", "Username (optional):"), Theme.TextSecondary, 9f);
-        userLbl.Location = new Point(398, 12);
-        card.Controls.Add(userLbl);
-
-        _txtUsername.MaxLength = MaxUsernameChars;
-        _txtUsername.BackColor = Theme.SurfaceRaised;
-        _txtUsername.ForeColor = Theme.Text;
-        _txtUsername.BorderStyle = BorderStyle.FixedSingle;
-        _txtUsername.Font = new Font("Microsoft YaHei UI", 9f);
-        _txtUsername.Size = new Size(160, 22);
-        _txtUsername.Location = new Point(492, 8);
-        _txtUsername.PlaceholderText = L.S("留空则匿名提交", "blank = anonymous");
-        card.Controls.Add(_txtUsername);
-
         _lblCount.ForeColor = Theme.TextMuted;
         _lblCount.Font = new Font("Microsoft YaHei UI", 8f);
         _lblCount.AutoSize = true;
-        _lblCount.Location = new Point(726, 12);
+        _lblCount.Location = new Point(726, 10);
         card.Controls.Add(_lblCount);
 
         _txtDesc.Multiline = true;
@@ -240,36 +366,36 @@ public sealed class FeedbackPage : UserControl
         _txtDesc.ForeColor = Theme.Text;
         _txtDesc.BorderStyle = BorderStyle.FixedSingle;
         _txtDesc.Font = new Font("Microsoft YaHei UI", 9f);
-        _txtDesc.Size = new Size(758, 100);
+        _txtDesc.Size = new Size(758, 136);
         _txtDesc.Location = new Point(16, 32);
         _txtDesc.TextChanged += (_, _) => _lblCount.Text = $"{_txtDesc.Text.Length}/{MaxDescChars}";
         card.Controls.Add(_txtDesc);
-        Theme.AttachScrollIndicator(_txtDesc, card, rightInset: 16, topInset: 34, height: 96);
+        Theme.AttachScrollIndicator(_txtDesc, card, rightInset: 16, topInset: 34, height: 132);
 
-        Controls.Add(card);
+        _scrollContent.Controls.Add(card);
     }
 
     private void BuildShotsCard(int y)
     {
-        var card = Theme.MakeCard(790, 84);
+        var card = Theme.MakeCard(790, 94);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(
             L.S("截图（可选，最多 4 张、每张 ≤ 8MB；建议包含游戏内报错/画面异常的画面）",
                 "Screenshots (optional, up to 4, each ≤ 8 MB; in-game errors or glitches are most helpful)"),
             Theme.Text, 9.75f, bold: true);
-        head.Location = new Point(16, 6);
+        head.Location = new Point(16, 8);
         card.Controls.Add(head);
 
         _btnAdd.Text = L.S("添加截图...", "Add screenshots...");
-        _btnAdd.Size = new Size(120, 26);
-        _btnAdd.Location = new Point(16, 30);
+        _btnAdd.Size = new Size(120, 28);
+        _btnAdd.Location = new Point(16, 32);
         _btnAdd.Click += (_, _) => AddShots();
         card.Controls.Add(_btnAdd);
 
         _btnClear.Text = L.S("清除", "Clear");
-        _btnClear.Size = new Size(76, 26);
-        _btnClear.Location = new Point(144, 30);
+        _btnClear.Size = new Size(76, 28);
+        _btnClear.Location = new Point(144, 32);
         _btnClear.Click += (_, _) => { _shots.Clear(); RefreshShots(); };
         card.Controls.Add(_btnClear);
 
@@ -277,49 +403,66 @@ public sealed class FeedbackPage : UserControl
         _lstShots.ForeColor = Theme.TextSecondary;
         _lstShots.BorderStyle = BorderStyle.FixedSingle;
         _lstShots.Font = new Font("Microsoft YaHei UI", 8.5f);
-        _lstShots.Size = new Size(542, 48);
-        _lstShots.Location = new Point(232, 30);
+        _lstShots.Size = new Size(542, 56);
+        _lstShots.Location = new Point(232, 32);
         _lstShots.IntegralHeight = false;
         card.Controls.Add(_lstShots);
 
-        Controls.Add(card);
+        _scrollContent.Controls.Add(card);
     }
 
     private void BuildSubmitRow(int y)
     {
         _btnSubmit = Theme.MakeButton(L.S("提交反馈", "Submit Feedback"), primary: true);
-        _btnSubmit.Size = new Size(150, 36);
+        _btnSubmit.Size = new Size(150, 40);
         _btnSubmit.Location = new Point(36, y);
         _btnSubmit.Click += (_, _) => { if (_submitted) ResetForm(); else _ = SubmitAsync(); };
-        Controls.Add(_btnSubmit);
+        _scrollContent.Controls.Add(_btnSubmit);
+
+        // 可选用户名紧跟提交按钮（同 GSX：留空则匿名提交）；输入框实时跟随标签右缘，间距固定 8px
+        var userLbl = Theme.MakeLabel(L.S("用户名（选填）：", "Username (optional):"), Theme.TextSecondary, 9f);
+        userLbl.AutoSize = true;
+        userLbl.Location = new Point(202, y + 13);
+        _scrollContent.Controls.Add(userLbl);
+
+        _txtUsername.MaxLength = MaxUsernameChars;
+        _txtUsername.BackColor = Theme.SurfaceRaised;
+        _txtUsername.ForeColor = Theme.Text;
+        _txtUsername.BorderStyle = BorderStyle.FixedSingle;
+        _txtUsername.Font = new Font("Microsoft YaHei UI", 9f);
+        _txtUsername.Size = new Size(190, 24);
+        _txtUsername.Location = new Point(userLbl.Right + 8, y + 8);
+        _txtUsername.PlaceholderText = L.S("留空则匿名提交", "blank = anonymous");
+        userLbl.SizeChanged += (_, _) => _txtUsername.Left = userLbl.Right + 8;   // 标签宽度随字体/语言变化时保持紧贴
+        _scrollContent.Controls.Add(_txtUsername);
 
         _lblStatus.AutoSize = false;
-        _lblStatus.Size = new Size(470, 34);
-        _lblStatus.Location = new Point(192, y + 2);
+        _lblStatus.Size = new Size(Math.Max(160, 714 - (_txtUsername.Right + 14)), 52);
+        _lblStatus.Location = new Point(_txtUsername.Right + 14, y + 2);
         _lblStatus.ForeColor = Theme.TextMuted;
-        _lblStatus.Font = new Font("Microsoft YaHei UI", 8.75f);
+        _lblStatus.Font = new Font("Microsoft YaHei UI", 8.25f);
         _lblStatus.Text = L.S("提交前请确认已勾选出问题的游戏并填写问题描述。",
                               "Before submitting, pick the affected game(s) and fill in the description.");
-        Controls.Add(_lblStatus);
+        _scrollContent.Controls.Add(_lblStatus);
 
-        // 提交成功后出现：复制反馈码（同 GSX）
-        _btnCopyCode.Text = L.S("复制反馈码", "Copy code");
-        _btnCopyCode.Size = new Size(100, 28);
-        _btnCopyCode.Location = new Point(668, y + 4);
+        // 提交成功后出现：反馈码已自动复制，此处可手动再复制
+        _btnCopyCode.Text = L.S("再次复制", "Copy again");
+        _btnCopyCode.Size = new Size(104, 28);
+        _btnCopyCode.Location = new Point(722, y + 6);
         _btnCopyCode.Visible = false;
         _btnCopyCode.Click += (_, _) => CopyCode();
-        Controls.Add(_btnCopyCode);
+        _scrollContent.Controls.Add(_btnCopyCode);
     }
 
     // ───────────────────────────── 反馈码查询（同 GSX） ─────────────────────────────
 
     private void BuildQueryCard(int y)
     {
-        var card = Theme.MakeCard(790, 112);
+        var card = Theme.MakeCard(790, 148);
         card.Location = new Point(36, y);
 
         var head = Theme.MakeLabel(L.S("查询反馈进度", "Query feedback status"), Theme.Text, 9.75f, bold: true);
-        head.Location = new Point(16, 6);
+        head.Location = new Point(16, 10);
         card.Controls.Add(head);
 
         var hint = Theme.MakeLabel(
@@ -328,41 +471,41 @@ public sealed class FeedbackPage : UserControl
             Theme.TextMuted, 8.25f);
         hint.AutoSize = false;
         hint.Size = new Size(560, 16);
-        hint.Location = new Point(130, 10);
+        hint.Location = new Point(130, 14);
         card.Controls.Add(hint);
 
         _txtQuery.BackColor = Theme.SurfaceRaised;
         _txtQuery.ForeColor = Theme.Text;
         _txtQuery.BorderStyle = BorderStyle.FixedSingle;
         _txtQuery.Font = new Font("Microsoft YaHei UI", 9f);
-        _txtQuery.Size = new Size(320, 24);
-        _txtQuery.Location = new Point(16, 30);
+        _txtQuery.Size = new Size(360, 26);
+        _txtQuery.Location = new Point(16, 44);
         _txtQuery.PlaceholderText = L.S("输入反馈码，例如 FB-A1B2C3", "Feedback code, e.g. FB-A1B2C3");
         _txtQuery.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _ = QueryAsync(); } };
         card.Controls.Add(_txtQuery);
 
         _btnQuery.Text = L.S("查询", "Query");
-        _btnQuery.Size = new Size(80, 24);
-        _btnQuery.Location = new Point(344, 30);
+        _btnQuery.Size = new Size(90, 26);
+        _btnQuery.Location = new Point(388, 44);
         _btnQuery.Click += (_, _) => _ = QueryAsync();
         card.Controls.Add(_btnQuery);
 
         _lblQueryState.AutoSize = false;
-        _lblQueryState.Size = new Size(758, 18);
-        _lblQueryState.Location = new Point(16, 62);
+        _lblQueryState.Size = new Size(758, 20);
+        _lblQueryState.Location = new Point(16, 86);
         _lblQueryState.ForeColor = Theme.TextMuted;
-        _lblQueryState.Font = new Font("Microsoft YaHei UI", 8.75f);
+        _lblQueryState.Font = new Font("Microsoft YaHei UI", 9f);
         card.Controls.Add(_lblQueryState);
 
         _lblQueryReply.AutoSize = false;
-        _lblQueryReply.Size = new Size(758, 18);
-        _lblQueryReply.Location = new Point(16, 84);
+        _lblQueryReply.Size = new Size(758, 20);
+        _lblQueryReply.Location = new Point(16, 112);
         _lblQueryReply.ForeColor = Theme.TextSecondary;
-        _lblQueryReply.Font = new Font("Microsoft YaHei UI", 8.75f);
+        _lblQueryReply.Font = new Font("Microsoft YaHei UI", 9f);
         _lblQueryReply.AutoEllipsis = true;
         card.Controls.Add(_lblQueryReply);
 
-        Controls.Add(card);
+        _scrollContent.Controls.Add(card);
     }
 
     private async Task QueryAsync()
@@ -581,18 +724,22 @@ public sealed class FeedbackPage : UserControl
         _ckxp.Enabled = enabled;
     }
 
-    /// <summary>提交成功后的展示态（同 GSX）：锁定表单，展示反馈码并支持复制，「继续填写」复位。</summary>
+    /// <summary>提交成功后的展示态（同 GSX）：反馈码自动进剪贴板，锁表单、滚到查询面板引导查询。</summary>
     private void EnterSubmittedState(string code)
     {
         _submitted = true;
         _lastCode = code;
         SetFormEnabled(false);
         _btnSubmit.Text = L.S("继续填写", "New feedback");
+        bool copied = CopyCodeToClipboard();
         _lblStatus.ForeColor = Theme.Signal;
-        _lblStatus.Text = L.S(
-            $"✓ 反馈已提交！反馈码：{code} —— 凭反馈码可在下方随时查询处理进度与管理员回复。",
-            $"✓ Submitted! Feedback code: {code} — use it below to check status and the admin reply anytime.");
+        _lblStatus.Text = copied
+            ? L.S($"✓ 反馈已提交！反馈码 {code} 已复制到剪贴板，请在下方查询处理进度。",
+                  $"✓ Submitted! Code {code} copied to clipboard. Query below for status.")
+            : L.S($"✓ 反馈已提交！反馈码：{code}（自动复制失败，请点右侧按钮重试）",
+                  $"✓ Submitted! Code: {code} (auto-copy failed, use the button)");
         _btnCopyCode.Visible = true;
+        AnimateScrollTo(MaxScroll);   // 滚到底部的查询面板，引导用户查询
     }
 
     private void ResetForm()
@@ -610,20 +757,37 @@ public sealed class FeedbackPage : UserControl
                               "Before submitting, pick the affected game(s) and fill in the description.");
         _btnSubmit.Text = L.S("提交反馈", "Submit Feedback");
         _btnCopyCode.Visible = false;
+        AnimateScrollTo(0);
+    }
+
+    private bool CopyCodeToClipboard()
+    {
+        if (string.IsNullOrEmpty(_lastCode)) return false;
+        // 剪贴板可能被其他进程（剪贴板工具/IM）短暂占用，重试几次
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                Clipboard.Clear();
+                Clipboard.SetText(_lastCode);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn($"剪贴板写入失败（第 {attempt} 次）：{ex.Message}");
+                if (attempt >= 8) return false;
+                Thread.Sleep(60);
+            }
+        }
     }
 
     private void CopyCode()
     {
-        if (string.IsNullOrEmpty(_lastCode)) return;
-        try
-        {
-            Clipboard.SetText(_lastCode);
-            _btnCopyCode.Text = L.S("已复制 ✓", "Copied ✓");
-            var timer = new System.Windows.Forms.Timer { Interval = 1600 };
-            timer.Tick += (_, _) => { timer.Stop(); timer.Dispose(); _btnCopyCode.Text = L.S("复制反馈码", "Copy code"); };
-            timer.Start();
-        }
-        catch { /* 剪贴板被占用等，忽略 */ }
+        CopyCodeToClipboard();
+        _btnCopyCode.Text = L.S("已复制 ✓", "Copied ✓");
+        var timer = new System.Windows.Forms.Timer { Interval = 1600 };
+        timer.Tick += (_, _) => { timer.Stop(); timer.Dispose(); _btnCopyCode.Text = L.S("再次复制", "Copy again"); };
+        timer.Start();
     }
 
     private async Task SubmitAsync()
