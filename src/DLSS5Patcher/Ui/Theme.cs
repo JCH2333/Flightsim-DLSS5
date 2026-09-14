@@ -714,18 +714,49 @@ public static class Theme
 
         protected override void OnDpiChanged(DpiChangedEventArgs e)
         {
-            e.Cancel = true;   // 不采用框架的建议矩形：几何在下面一次成型，避免二次全窗口重排
-            base.OnDpiChanged(e);   // 字体 pt 的 DPI 补偿由框架完成（见类注释）
+            e.Cancel = true;        // 不采用框架建议矩形：几何在下面一次成型
+            base.OnDpiChanged(e);   // 框架完成字体 pt 的 DPI 补偿（对 GDI 按主屏换算的修正）
             if (!_laid) return;     // 句柄创建期的 DPI 切换：几何仍是设计像素，留给 OnLoad 统一缩放
 
-            float f = (float)e.DeviceDpiNew / e.DeviceDpiOld;
-            SuspendLayout();
+            // 冻结整树绘制：几何重排与其后字体补偿波次产生的全部中间态都不上屏。
+            // 上一轮"更闪"的原因：逐控件 Scale → 190 个控件的中间状态逐个重绘上屏；
+            // 冻结后只在一切落定时一次性重绘。
+            SetRedrawDeep(this, false);
             try
             {
-                if (Math.Abs(f - 1f) > 0.001f) Scale(new SizeF(f, f));
-                Bounds = new Rectangle(Location, new Size(_designW * e.DeviceDpiNew / 96, _designH * e.DeviceDpiNew / 96));
+                float f = (float)e.DeviceDpiNew / e.DeviceDpiOld;
+                SuspendLayout();
+                try
+                {
+                    if (Math.Abs(f - 1f) > 0.001f) Scale(new SizeF(f, f));
+                    Bounds = new Rectangle(e.SuggestedRectangle.Location,   // 位置沿用系统建议（拖动中跟随光标）
+                        new Size(_designW * e.DeviceDpiNew / 96, _designH * e.DeviceDpiNew / 96));
+                }
+                finally { ResumeLayout(true); }
             }
-            finally { ResumeLayout(true); }
+            catch
+            {
+                Unfreeze();   // 兜底：任何异常都不能把窗口留在冻结状态
+                throw;
+            }
+            // 字体补偿的 AFTER_PARENT 波次以消息形式排在本处理之后，解冻任务在其后执行：
+            // 几何 + 字体全部落定后才做唯一一次完整重绘
+            _ = BeginInvoke(new Action(Unfreeze));
+        }
+
+        private void Unfreeze()
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            SetRedrawDeep(this, true);
+            RedrawWindow(Handle, IntPtr.Zero, IntPtr.Zero,
+                RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        }
+
+        private static void SetRedrawDeep(Control root, bool on)
+        {
+            if (root.IsHandleCreated)
+                SendMessage(root.Handle, WM_SETREDRAW, (IntPtr)(on ? 1 : 0), IntPtr.Zero);
+            foreach (Control child in root.Controls) SetRedrawDeep(child, on);
         }
 
         private void CenterIn(Control? anchor)
@@ -749,6 +780,16 @@ public static class Theme
 
         [DllImport("user32.dll")]
         private static extern int GetDpiForWindow(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool RedrawWindow(IntPtr hWnd, IntPtr rectUpdate, IntPtr hrgnUpdate, uint flags);
+
+        private const int WM_SETREDRAW = 0x000B;
+        private const uint RDW_ERASE = 0x4, RDW_FRAME = 0x400, RDW_INVALIDATE = 0x1,
+                           RDW_ALLCHILDREN = 0x80, RDW_UPDATENOW = 0x100;
     }
 
     /// <summary>
