@@ -71,7 +71,6 @@ public sealed class MainForm : Theme.DpiScaledForm
         WireEvents();
 
         SelectNav(0);
-        SealLayout();   // 字体快照（DpiScaledForm 跨 DPI 回滚用）；布局缩放在 OnLoad 按真实窗口 DPI 进行
         _ = RefreshAsync();
 
         Updater.CleanLeftovers();

@@ -97,8 +97,6 @@ public sealed class AnnouncementDialog : Theme.DpiScaledForm
             using var pen = new Pen(Theme.GlassBorder);
             e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
         };
-
-        SealLayout();   // 布局缩放由 DpiScaledForm 在 OnLoad 按真实窗口 DPI 进行
     }
 
     public static void ShowChain(Form owner, List<AnnouncementsClient.Announcement> popups)

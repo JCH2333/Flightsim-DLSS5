@@ -39,8 +39,6 @@ public sealed class LanguageDialog : Theme.DpiScaledForm
         btnEn.Font = new Font(Theme.FontUi, 11f, FontStyle.Bold);
         btnEn.Click += (_, _) => Choose("en");
         Controls.Add(btnEn);
-
-        SealLayout();   // 布局缩放由 DpiScaledForm 在 OnLoad 按真实窗口 DPI 进行
     }
 
     private void Choose(string lang)

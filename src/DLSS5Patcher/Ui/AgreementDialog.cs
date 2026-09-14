@@ -133,8 +133,6 @@ public sealed class AgreementDialog : Theme.DpiScaledForm
         {
             if (!_allowClose && e.CloseReason == CloseReason.UserClosing) e.Cancel = true;
         };
-
-        SealLayout();   // 布局缩放由 DpiScaledForm 在 OnLoad 按真实窗口 DPI 进行
     }
 
     private void SwitchTab(int idx)

@@ -670,22 +670,22 @@ public static class Theme
 
     /// <summary>
     /// 96-DPI 设计坐标窗体基类（PerMonitorV2）。
-    /// 布局缩放策略：
+    /// 几何缩放策略：
     ///   • 构造期只按 96-DPI 设计像素搭建，句柄随 Show/ShowDialog 在目标显示器上创建；
     ///   • OnLoad 用 GetDpiForWindow 取窗口真实 DPI 做一次性整体缩放并重新居中
     ///     （取代旧 CreateGraphics 方案——GDI+ 的 DpiX 在多屏下会返回主屏 DPI，
     ///      窗口落在低 DPI 副屏时会按主屏比例被放大）；
     ///   • 之后的跨屏拖动/系统缩放变更（WM_DPICHANGED）由 OnDpiChanged 接管：
-    ///     框架对 AutoScaleMode=None 的窗口不缩放子控件，却会把全树字体按 newDpi/oldDpi
-    ///     错误缩放（物理尺寸二次方偏差），这里改为自行等比缩放几何 + 字体快照回滚。
-    /// 构造函数末尾必须调用 SealLayout() 保存原始字体快照。
+    ///     框架对 AutoScaleMode=None 的窗口不缩放子控件几何，这里自行等比缩放并一次成型。
+    /// 字体不要自己动：GDI 字体的像素换算固定按主屏 DPI（进程启动时的主显示器），
+    /// 框架在 DPI 变化时把字号 pt 按 newDpi/oldDpi 缩放正是为此做的正确补偿
+    /// （例如 9.75pt 在 100% 副屏上会调成 4.875pt，渲染出来才是设计上的 13px）。
+    /// 任何"恢复字号"的操作都会让文字在非主屏 DPI 下翻倍/减半。
     /// </summary>
     public abstract class DpiScaledForm : Form
     {
         private readonly int _designW;
         private readonly int _designH;
-        private Dictionary<Control, Font>? _fonts;
-        private bool _sealed;
         private bool _laid;
 
         protected DpiScaledForm(int designW, int designH)
@@ -695,23 +695,8 @@ public static class Theme
             AutoScaleMode = AutoScaleMode.None;   // 布局缩放全部由本类接管，禁用框架自动缩放
         }
 
-        /// <summary>构造末尾调用：记录设计字体快照（此时句柄未创建，字体绝无 DPI 污染）。</summary>
-        protected void SealLayout()
-        {
-            _fonts = new Dictionary<Control, Font>();
-            Collect(this);
-            _sealed = true;
-
-            void Collect(Control c)
-            {
-                _fonts![c] = c.Font;
-                foreach (Control child in c.Controls) Collect(child);
-            }
-        }
-
         protected override void OnLoad(EventArgs e)
         {
-            if (!_sealed) SealLayout();   // 兜底：漏调 SealLayout 时退化为当前快照
             base.OnLoad(e);
 
             int dpi = GetDpiForWindow(Handle);
@@ -724,31 +709,23 @@ public static class Theme
             if (StartPosition == FormStartPosition.CenterScreen) CenterIn(null);
             else if (StartPosition == FormStartPosition.CenterParent && Owner != null) CenterIn(Owner);
 
-            RestoreFonts();
             _laid = true;
         }
 
         protected override void OnDpiChanged(DpiChangedEventArgs e)
         {
-            base.OnDpiChanged(e);      // 先让框架更新 DPI 状态并通知子控件
-            if (!_laid) return;        // 句柄创建期的 DPI 切换：几何仍是设计像素，留给 OnLoad 统一缩放
+            e.Cancel = true;   // 不采用框架的建议矩形：几何在下面一次成型，避免二次全窗口重排
+            base.OnDpiChanged(e);   // 字体 pt 的 DPI 补偿由框架完成（见类注释）
+            if (!_laid) return;     // 句柄创建期的 DPI 切换：几何仍是设计像素，留给 OnLoad 统一缩放
 
             float f = (float)e.DeviceDpiNew / e.DeviceDpiOld;
-            if (Math.Abs(f - 1f) > 0.001f) Scale(new SizeF(f, f));
-            ClientSize = new Size(_designW * e.DeviceDpiNew / 96, _designH * e.DeviceDpiNew / 96);
-            RestoreFonts();            // 回滚框架按 DPI 比例错误缩放的字体磅值
-        }
-
-        private void RestoreFonts()
-        {
-            if (_fonts == null) return;
-            Apply(this);
-
-            void Apply(Control c)
+            SuspendLayout();
+            try
             {
-                if (_fonts!.TryGetValue(c, out var font) && !ReferenceEquals(c.Font, font)) c.Font = font;
-                foreach (Control child in c.Controls) Apply(child);
+                if (Math.Abs(f - 1f) > 0.001f) Scale(new SizeF(f, f));
+                Bounds = new Rectangle(Location, new Size(_designW * e.DeviceDpiNew / 96, _designH * e.DeviceDpiNew / 96));
             }
+            finally { ResumeLayout(true); }
         }
 
         private void CenterIn(Control? anchor)

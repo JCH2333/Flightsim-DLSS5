@@ -104,8 +104,6 @@ public sealed class UpdateDialog : Theme.DpiScaledForm
         _btnUpdate.Location = new Point(392, 332);
         _btnUpdate.Click += (_, _) => _ = RunAsync();
         Controls.Add(_btnUpdate);
-
-        SealLayout();   // 布局缩放由 DpiScaledForm 在 OnLoad 按真实窗口 DPI 进行
     }
 
     private async Task RunAsync()
