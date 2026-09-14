@@ -8,7 +8,7 @@ namespace DLSS5Patcher;
 /// 主窗体：自绘玻璃标题栏 + 左侧 218px 导航（一键安装 / 教程 / 反馈 / 设置）+ 右侧环境光晕内容区。
 /// 视觉对齐 GSX 汉化 2.0.0（毛玻璃 + 简约高级感），中英双语；支持 MSFS 2024 / 2020(Beta) / X-Plane 12。
 /// </summary>
-public sealed class MainForm : Form
+public sealed class MainForm : Theme.DpiScaledForm
 {
     private const int ClientW = 1080;
     private const int ClientH = 838;          // 含 38px 自绘标题栏
@@ -31,7 +31,7 @@ public sealed class MainForm : Form
     private Panel _annDot = new();
     private readonly List<Control> _titleButtons = new();
 
-    public MainForm()
+    public MainForm() : base(ClientW, ClientH)
     {
         Text = L.S("DLSS5 神经渲染安装器 — MSFS 2024 / X-Plane 12（RTX 20-50 系）",
                    "DLSS5 Neural Render Patcher — MSFS 2024 / X-Plane 12 (RTX 20-50 series)");
@@ -70,16 +70,8 @@ public sealed class MainForm : Form
 
         WireEvents();
 
-        // 高 DPI：布局按 96DPI 设计，此处按真实 DPI 整体缩放（字体本身随 DPI 渲染，无需缩放字体）
-        float dpiFactor;
-        using (var g = CreateGraphics()) dpiFactor = g.DpiX / 96f;
-        if (dpiFactor > 1.01f)
-        {
-            Scale(new SizeF(dpiFactor, dpiFactor));
-            ClientSize = new Size((int)(ClientW * dpiFactor), (int)(ClientH * dpiFactor));
-        }
-
         SelectNav(0);
+        SealLayout();   // 字体快照（DpiScaledForm 跨 DPI 回滚用）；布局缩放在 OnLoad 按真实窗口 DPI 进行
         _ = RefreshAsync();
 
         Updater.CleanLeftovers();
@@ -107,7 +99,7 @@ public sealed class MainForm : Form
     private const int WM_NCLBUTTONDOWN = 0xA1;
     private const int HTCAPTION = 0x2;
 
-    // 拖动自绘标题栏（避开窗口按钮区）
+    // 拖动自绘标题栏（避开窗口按钮区）；常量为 96-DPI 设计值，命中测试按当前 DPI 换算
     protected override void WndProc(ref Message m)
     {
         const int WM_NCHITTEST = 0x84;
@@ -117,7 +109,8 @@ public sealed class MainForm : Form
             short x = (short)(m.LParam.ToInt64() & 0xFFFF);
             short y = (short)((m.LParam.ToInt64() >> 16) & 0xFFFF);
             var p = PointToClient(new Point(x, y));
-            if (p.Y < TitleBarH && p.X < ClientSize.Width - 92)
+            int scale = DeviceDpi / 96;
+            if (p.Y < TitleBarH * scale && p.X < ClientSize.Width - 92 * scale)
                 m.Result = (IntPtr)2;                            // HTCAPTION
         }
     }

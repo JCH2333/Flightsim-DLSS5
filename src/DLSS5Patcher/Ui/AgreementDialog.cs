@@ -6,7 +6,7 @@ namespace DLSS5Patcher.Ui;
 /// 用户协议确认弹窗。启动时强制展示：两份文件都滚动阅读完毕后「同意并继续使用」才可用；
 /// 点击「不同意并退出」则直接关闭软件。设置页以 fromSettings=true 打开时可查看协议并修改同意状态。
 /// </summary>
-public sealed class AgreementDialog : Form
+public sealed class AgreementDialog : Theme.DpiScaledForm
 {
     private readonly RichTextBox _text = new();
     private readonly Theme.ScrollIndicator?[] _bars = new Theme.ScrollIndicator[2];
@@ -22,7 +22,7 @@ public sealed class AgreementDialog : Form
     /// <summary>True = 用户点击了同意；False = 拒绝（required 模式下程序应退出）。</summary>
     public bool Accepted { get; private set; }
 
-    public AgreementDialog(bool fromSettings)
+    public AgreementDialog(bool fromSettings) : base(620, 660)
     {
         _fromSettings = fromSettings;
         FormBorderStyle = FormBorderStyle.None;
@@ -116,7 +116,8 @@ public sealed class AgreementDialog : Form
         {
             Theme.ApplyWindowChrome(this);
             SwitchTab(0);   // 先填充正文
-            _bars[0] = Theme.AttachScrollIndicator(_text, this, rightInset: 30, topInset: 152, height: 360);
+            float s = DeviceDpi / 96f;   // 此刻布局已完成缩放，指示条几何须按当前 DPI 换算
+            _bars[0] = Theme.AttachScrollIndicator(_text, this, rightInset: (int)(30 * s), topInset: (int)(152 * s), height: (int)(360 * s), dpiScale: s);
             _bars[0].ReachedBottom += () => MarkRead(_active);   // 当前页签滚动到底 → 已读
             UpdateButtons();
         };
@@ -133,14 +134,7 @@ public sealed class AgreementDialog : Form
             if (!_allowClose && e.CloseReason == CloseReason.UserClosing) e.Cancel = true;
         };
 
-        // 高 DPI：与 UpdateDialog/LanguageDialog 相同的 96-DPI 设计 + 启动时整体缩放
-        float dpi;
-        using (var g = CreateGraphics()) dpi = g.DpiX / 96f;
-        if (dpi > 1.01f)
-        {
-            Scale(new SizeF(dpi, dpi));
-            ClientSize = new Size((int)(620 * dpi), (int)(660 * dpi));
-        }
+        SealLayout();   // 布局缩放由 DpiScaledForm 在 OnLoad 按真实窗口 DPI 进行
     }
 
     private void SwitchTab(int idx)
@@ -182,7 +176,8 @@ public sealed class AgreementDialog : Form
             if (agreedNow)
             {
                 _btnAgree.Visible = false;
-                _btnDecline.Location = new Point(ClientSize.Width - _btnDecline.Width - 30, ClientSize.Height - _btnDecline.Height - 30);
+                int margin = 30 * DeviceDpi / 96;
+                _btnDecline.Location = new Point(ClientSize.Width - _btnDecline.Width - margin, ClientSize.Height - _btnDecline.Height - margin);
                 _lblRead.Text = L.S($"当前状态：已同意（修订 {AgreementContent.Revision}，{AppConfig.AgreedAt}）",
                                     $"Current status: accepted (revision {AgreementContent.Revision}, {AppConfig.AgreedAt})");
             }

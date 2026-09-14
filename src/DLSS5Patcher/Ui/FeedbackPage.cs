@@ -149,6 +149,15 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
         _scrollTimer.Start();
     }
 
+    // 跨 DPI 缩放时窗体整体缩放几何；滚动偏移是绝对像素，须等比跟随，否则停留位置漂移
+    protected override void ScaleControl(SizeF factor, BoundsSpecified specified)
+    {
+        int before = _scrollY;
+        base.ScaleControl(factor, specified);
+        if (before > 0 && Math.Abs(factor.Width - 1f) > 0.001f && IsHandleCreated)
+            BeginInvoke(() => ScrollTo((int)Math.Round(before * factor.Width)));   // 布局落定后再恢复偏移
+    }
+
     /// <summary>页面级细滚动条：视觉与 Theme.ScrollIndicator 相同（4px 轨道/滑块），按像素定位。</summary>
     private sealed class PageBar : Panel
     {

@@ -7,12 +7,12 @@ namespace DLSS5Patcher.Ui;
 /// 内容区与使用教程页同一套滚动方案：ScrollBars.None + WheelRouter 滚轮 + ScrollIndicator 拖动滑块。
 /// 逐条展示：关闭后由主窗体弹出下一条待展示公告。
 /// </summary>
-public sealed class AnnouncementDialog : Form
+public sealed class AnnouncementDialog : Theme.DpiScaledForm
 {
     private readonly Theme.GlassButton _btnOk = new();
     private readonly Theme.GlassButton _btnClose = new();
 
-    public AnnouncementDialog(AnnouncementsClient.Announcement announcement)
+    public AnnouncementDialog(AnnouncementsClient.Announcement announcement) : base(480, 460)
     {
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterParent;
@@ -98,16 +98,7 @@ public sealed class AnnouncementDialog : Form
             e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
         };
 
-        // 高 DPI：与 UpdateDialog/LanguageDialog 相同的 96-DPI 设计 + 启动时整体缩放
-        float dpi;
-        using (var g = CreateGraphics()) dpi = g.DpiX / 96f;
-        if (dpi > 1.01f)
-        {
-            Scale(new SizeF(dpi, dpi));
-            ClientSize = new Size((int)(480 * dpi), (int)(460 * dpi));
-            _btnOk.Location = new Point((int)(30 * dpi), ClientSize.Height - (int)(42 * dpi) - (int)(22 * dpi));
-            _btnClose.Location = new Point(ClientSize.Width - (int)(30 * dpi) - (int)(14 * dpi), (int)(14 * dpi));
-        }
+        SealLayout();   // 布局缩放由 DpiScaledForm 在 OnLoad 按真实窗口 DPI 进行
     }
 
     public static void ShowChain(Form owner, List<AnnouncementsClient.Announcement> popups)

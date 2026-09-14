@@ -7,7 +7,7 @@ namespace DLSS5Patcher.Ui;
 /// 强制更新对话框：发现新版本时阻塞主界面，直到下载校验完成并重启，或用户主动退出程序。
 /// 没有关闭按钮，Alt+F4 也被拦截；下载失败时仅提供 重试 / 打开发布页 / 退出 三个出口。
 /// </summary>
-public sealed class UpdateDialog : Form
+public sealed class UpdateDialog : Theme.DpiScaledForm
 {
     private readonly Updater.UpdateInfo _info;
     private readonly TextBox _notes;
@@ -19,7 +19,7 @@ public sealed class UpdateDialog : Form
     private readonly Theme.GlassButton _btnExit = new();
     private bool _allowClose;
 
-    public UpdateDialog(Updater.UpdateInfo info)
+    public UpdateDialog(Updater.UpdateInfo info) : base(560, 400)
     {
         _info = info;
 
@@ -105,14 +105,7 @@ public sealed class UpdateDialog : Form
         _btnUpdate.Click += (_, _) => _ = RunAsync();
         Controls.Add(_btnUpdate);
 
-        // 高 DPI 整体缩放（与主窗体同一方案）
-        float dpi;
-        using (var g = CreateGraphics()) dpi = g.DpiX / 96f;
-        if (dpi > 1.01f)
-        {
-            Scale(new SizeF(dpi, dpi));
-            ClientSize = new Size((int)(560 * dpi), (int)(400 * dpi));
-        }
+        SealLayout();   // 布局缩放由 DpiScaledForm 在 OnLoad 按真实窗口 DPI 进行
     }
 
     private async Task RunAsync()

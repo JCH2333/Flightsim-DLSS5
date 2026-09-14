@@ -3,9 +3,9 @@ using DLSS5Patcher.Core;
 namespace DLSS5Patcher.Ui;
 
 /// <summary>首次启动的语言选择对话框（玻璃深色 + 双列大按钮），选择后写入 AppConfig。</summary>
-public sealed class LanguageDialog : Form
+public sealed class LanguageDialog : Theme.DpiScaledForm
 {
-    public LanguageDialog()
+    public LanguageDialog() : base(480, 220)
     {
         Text = "选择语言 / Select Language";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -40,14 +40,7 @@ public sealed class LanguageDialog : Form
         btnEn.Click += (_, _) => Choose("en");
         Controls.Add(btnEn);
 
-        // 高 DPI 整体缩放（与主窗体同一方案）
-        float dpi;
-        using (var g = CreateGraphics()) dpi = g.DpiX / 96f;
-        if (dpi > 1.01f)
-        {
-            Scale(new SizeF(dpi, dpi));
-            ClientSize = new Size((int)(480 * dpi), (int)(220 * dpi));
-        }
+        SealLayout();   // 布局缩放由 DpiScaledForm 在 OnLoad 按真实窗口 DPI 进行
     }
 
     private void Choose(string lang)

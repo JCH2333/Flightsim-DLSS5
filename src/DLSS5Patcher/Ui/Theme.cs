@@ -669,6 +669,112 @@ public static class Theme
     }
 
     /// <summary>
+    /// 96-DPI 设计坐标窗体基类（PerMonitorV2）。
+    /// 布局缩放策略：
+    ///   • 构造期只按 96-DPI 设计像素搭建，句柄随 Show/ShowDialog 在目标显示器上创建；
+    ///   • OnLoad 用 GetDpiForWindow 取窗口真实 DPI 做一次性整体缩放并重新居中
+    ///     （取代旧 CreateGraphics 方案——GDI+ 的 DpiX 在多屏下会返回主屏 DPI，
+    ///      窗口落在低 DPI 副屏时会按主屏比例被放大）；
+    ///   • 之后的跨屏拖动/系统缩放变更（WM_DPICHANGED）由 OnDpiChanged 接管：
+    ///     框架对 AutoScaleMode=None 的窗口不缩放子控件，却会把全树字体按 newDpi/oldDpi
+    ///     错误缩放（物理尺寸二次方偏差），这里改为自行等比缩放几何 + 字体快照回滚。
+    /// 构造函数末尾必须调用 SealLayout() 保存原始字体快照。
+    /// </summary>
+    public abstract class DpiScaledForm : Form
+    {
+        private readonly int _designW;
+        private readonly int _designH;
+        private Dictionary<Control, Font>? _fonts;
+        private bool _sealed;
+        private bool _laid;
+
+        protected DpiScaledForm(int designW, int designH)
+        {
+            _designW = designW;
+            _designH = designH;
+            AutoScaleMode = AutoScaleMode.None;   // 布局缩放全部由本类接管，禁用框架自动缩放
+        }
+
+        /// <summary>构造末尾调用：记录设计字体快照（此时句柄未创建，字体绝无 DPI 污染）。</summary>
+        protected void SealLayout()
+        {
+            _fonts = new Dictionary<Control, Font>();
+            Collect(this);
+            _sealed = true;
+
+            void Collect(Control c)
+            {
+                _fonts![c] = c.Font;
+                foreach (Control child in c.Controls) Collect(child);
+            }
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            if (!_sealed) SealLayout();   // 兜底：漏调 SealLayout 时退化为当前快照
+            base.OnLoad(e);
+
+            int dpi = GetDpiForWindow(Handle);
+            float factor = dpi / 96f;
+            if (factor > 1.001f) Scale(new SizeF(factor, factor));
+            ClientSize = new Size(_designW * dpi / 96, _designH * dpi / 96);
+
+            // CenterScreen/CenterParent 是按设计尺寸居中的，缩放后重新对齐；
+            // 工作区居中同时避免窗口下缘压进任务栏
+            if (StartPosition == FormStartPosition.CenterScreen) CenterIn(null);
+            else if (StartPosition == FormStartPosition.CenterParent && Owner != null) CenterIn(Owner);
+
+            RestoreFonts();
+            _laid = true;
+        }
+
+        protected override void OnDpiChanged(DpiChangedEventArgs e)
+        {
+            base.OnDpiChanged(e);      // 先让框架更新 DPI 状态并通知子控件
+            if (!_laid) return;        // 句柄创建期的 DPI 切换：几何仍是设计像素，留给 OnLoad 统一缩放
+
+            float f = (float)e.DeviceDpiNew / e.DeviceDpiOld;
+            if (Math.Abs(f - 1f) > 0.001f) Scale(new SizeF(f, f));
+            ClientSize = new Size(_designW * e.DeviceDpiNew / 96, _designH * e.DeviceDpiNew / 96);
+            RestoreFonts();            // 回滚框架按 DPI 比例错误缩放的字体磅值
+        }
+
+        private void RestoreFonts()
+        {
+            if (_fonts == null) return;
+            Apply(this);
+
+            void Apply(Control c)
+            {
+                if (_fonts!.TryGetValue(c, out var font) && !ReferenceEquals(c.Font, font)) c.Font = font;
+                foreach (Control child in c.Controls) Apply(child);
+            }
+        }
+
+        private void CenterIn(Control? anchor)
+        {
+            Rectangle area;
+            Point center;
+            if (anchor != null)
+            {
+                area = Screen.FromControl(anchor).WorkingArea;
+                center = new Point(anchor.Left + anchor.Width / 2, anchor.Top + anchor.Height / 2);
+            }
+            else
+            {
+                area = Screen.FromControl(this).WorkingArea;
+                center = new Point(area.Left + area.Width / 2, area.Top + area.Height / 2);
+            }
+            int x = Math.Clamp(center.X - Width / 2, area.Left, Math.Max(area.Left, area.Right - Width));
+            int y = Math.Clamp(center.Y - Height / 2, area.Top, Math.Max(area.Top, area.Bottom - Height));
+            Location = new Point(x, y);
+        }
+
+        [DllImport("user32.dll")]
+        private static extern int GetDpiForWindow(IntPtr hwnd);
+    }
+
+    /// <summary>
     /// 跨显示器拖动窗口（PerMonitorV2 DPI 变化）时，RichEdit 会丢失全部逐字符颜色——
     /// 教程/公告文字因此变成黑色。本控件在内容构建完成后调用 SaveSnapshot() 留一份干净的 RTF，
     /// 之后每逢 DPI/字体变化（事件后延迟执行）把快照原样还原。RTF 字号是逻辑磅值，新 DPI 下渲染依旧正确。
@@ -720,13 +826,15 @@ public static class Theme
         }
     }
 
-    /// <summary>给多行 RichTextBox 挂上细滚动条（置于指定宿主的右上内侧），并注册滚轮路由。</summary>
-    public static ScrollIndicator AttachScrollIndicator(RichTextBox rtb, Control host, int rightInset, int topInset, int height)
+    /// <summary>给多行 RichTextBox 挂上细滚动条（置于指定宿主的右上内侧），并注册滚轮路由。
+    /// 构造期调用传默认 dpiScale=1（坐标随后由窗体整体缩放）；OnShown/运行时等
+    /// 宿主已缩放后的调用须传 dpiScale = host.DeviceDpi / 96f。</summary>
+    public static ScrollIndicator AttachScrollIndicator(RichTextBox rtb, Control host, int rightInset, int topInset, int height, float dpiScale = 1f)
     {
         var indicator = new ScrollIndicator(rtb)
         {
-            Size = new Size(12, height),
-            Location = new Point(host.ClientSize.Width - rightInset - 12, topInset),
+            Size = new Size((int)(12 * dpiScale), (int)(height * dpiScale)),
+            Location = new Point(host.ClientSize.Width - (int)(rightInset * dpiScale) - (int)(12 * dpiScale), (int)(topInset * dpiScale)),
         };
         host.Controls.Add(indicator);
         indicator.BringToFront();
