@@ -647,7 +647,8 @@ public sealed class MainForm : Theme.DpiScaledForm
         var canUninstall = !locked &&
             (File.Exists(Path.Combine(_gameXp12.GameDir, "dlss5-feed.addon64")) || XP12Installer.LoadManifest() != null);
         _home.SetCard(HomePage.CardXp12, state,
-            $"{_gameXp12.GameDir}   [{_gameXp12.Source}]   |   " + L.S($"组件包: {KitStatusText()}", $"Kit: {KitStatusText()}"),
+            $"{_gameXp12.GameDir}   [{_gameXp12.Source}]   |   " + L.S($"组件包: {KitStatusText()}", $"Kit: {KitStatusText()}")
+            + L.S("   |   ⚠ 需以 --allow_reshade 启动", "   |   ⚠ launch with --allow_reshade"),
             canInstall, canUninstall);
     }
 
@@ -900,8 +901,8 @@ public sealed class MainForm : Theme.DpiScaledForm
             if (beta) Log(L.S("（MSFS 2020 为 Beta 实验功能，如有异常请一键卸载并在粉丝群反馈）",
                               "(MSFS 2020 support is BETA — if anything misbehaves, uninstall and report in the fan group)"));
             MessageBox.Show(this,
-                L.S("安装完成！\n\n启动游戏后按 Insert 键打开 OptiScaler 菜单，\n展开 DLSS Neural Rendering 查看运行状态（应显示 Running）。",
-                    "Installation complete!\n\nIn game, press Insert to open the OptiScaler menu,\nthen expand DLSS Neural Rendering to check its status (it should show Running)."),
+                L.S("安装完成！\n\n启动游戏后按 Insert 键打开 OptiScaler 菜单，\n展开 DLSS Neural Rendering 查看运行状态（应显示 Running）。\n\n若主菜单卡死或异常：重启游戏后在主页把「DLSS5 滤镜开关」\n关闭，进入飞行后再开启即可。",
+                    "Installation complete!\n\nIn game, press Insert to open the OptiScaler menu,\nthen expand DLSS Neural Rendering to check its status (it should show Running).\n\nIf the main menu freezes: restart the game, turn the \"DLSS5 filter switch\"\noff on the home page, and turn it back on once in flight."),
                 L.S("完成", "Done"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
@@ -975,9 +976,33 @@ public sealed class MainForm : Theme.DpiScaledForm
                 KitDir = AppConfig.KitDir,
                 Log = Log,
             });
+            // XP12 会主动屏蔽 ReShade 层（Home 键无反应），必须以 --allow_reshade 启动：
+            // 自动创建带参数的桌面快捷方式，避免用户逐个排查
+            string shortcutTip;
+            try
+            {
+                var lnk = ShortcutHelper.ShortcutPath("X-Plane 12 (DLSS5)");
+                ShortcutHelper.Create("X-Plane 12 (DLSS5)", _gameXp12.ExePath, "--allow_reshade",
+                    _gameXp12.GameDir, L.S("以 --allow_reshade 启动 X-Plane（DLSS5 滤镜必需）",
+                                            "Launch X-Plane with --allow_reshade (required by DLSS5)"));
+                Log(L.S("已在桌面创建「X-Plane 12 (DLSS5)」快捷方式（自动带 --allow_reshade 启动参数）。",
+                        "Created the desktop shortcut \"X-Plane 12 (DLSS5)\" (launches with --allow_reshade)."));
+                shortcutTip = L.S(
+                    "· 已在桌面创建「X-Plane 12 (DLSS5)」快捷方式——请用它启动游戏；\n  XP12 会主动屏蔽滤镜层，不带 --allow_reshade 参数时 Home 键无反应。\n· 若通过 Steam 启动：请在 Steam 启动项中添加 --allow_reshade。\n",
+                    "· A desktop shortcut \"X-Plane 12 (DLSS5)\" was created — launch the game with it;\n  XP12 blocks the filter layer, so Home does nothing without --allow_reshade.\n· If you launch via Steam: add --allow_reshade to its launch options.\n");
+            }
+            catch (Exception ex)
+            {
+                Log(L.S("桌面快捷方式创建失败: ", "Failed to create the desktop shortcut: ") + ex.Message);
+                shortcutTip = L.S(
+                    "· ⚠ 启动 X-Plane 时必须带 --allow_reshade 参数（否则 Home 键无反应），\n  请在 Steam 启动项中添加，或手动创建带该参数的快捷方式。\n",
+                    "· ⚠ X-Plane must be launched with --allow_reshade (or Home does nothing) —\n  add it to the Steam launch options or create a shortcut manually.\n");
+            }
             MessageBox.Show(this,
-                L.S("安装完成！\n\n请完全退出并重新启动 X-Plane（若正在运行），\n按 Home 键确认 DRME 与 DLSS 5 Feed 已勾选；\n若 Deep Fried Chicken 显示 neural feature disabled，\n点 Refresh neural contract 或再次重启游戏即可激活。",
-                    "Installation complete!\n\nFully restart X-Plane if it was running,\npress Home to verify DRME and DLSS 5 Feed are ticked;\nif Deep Fried Chicken shows \"neural feature disabled\",\nclick Refresh neural contract or restart the game again."),
+                L.S("安装完成！\n\n" + shortcutTip +
+                    "请完全退出并重新启动 X-Plane（若正在运行），\n按 Home 键确认 DRME 与 DLSS 5 Feed 已勾选；\n若 Deep Fried Chicken 显示 neural feature disabled，\n点 Refresh neural contract 或再次重启游戏即可激活。",
+                    "Installation complete!\n\n" + shortcutTip +
+                    "Fully restart X-Plane if it was running,\npress Home to verify DRME and DLSS 5 Feed are ticked;\nif Deep Fried Chicken shows \"neural feature disabled\",\nclick Refresh neural contract or restart the game again."),
                 L.S("完成", "Done"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
@@ -1006,6 +1031,7 @@ public sealed class MainForm : Theme.DpiScaledForm
         try
         {
             await Task.Run(() => XP12Installer.Uninstall(_gameXp12.GameDir, _gameXp12.ExePath, Log));
+            Core.ShortcutHelper.Delete("X-Plane 12 (DLSS5)");   // 顺带清理安装时创建的快捷方式
             Log(L.S("XP12 卸载完成。", "XP12 uninstalled."));
         }
         catch (Exception ex)

@@ -120,10 +120,16 @@ public sealed class TutorialPage : Theme.AmbientPage
                  "4. If the Deep Fried Chicken tab shows \"neural feature disabled until native recreate/restart\" on first run,"));
         Line(L.S("   请点击 Refresh neural contract 按钮或完全重启 X-Plane 即可激活。",
                  "   click Refresh neural contract or fully restart X-Plane to activate the neural pipeline."));
-        Line(L.S("5. 已知特性：运动矢量为着色器估算，快速移动视角时会有短暂重影，属方案固有行为。",
-                 "5. Known trait: motion vectors are shader-estimated, so fast camera moves show brief ghosting — inherent to this approach."));
-        Line(L.S("5. XP12 本体 4K 渲染帧间隔约 105ms 属正常（本体渲染耗时），DLSS5 供给仅占约 1.5ms。",
-                 "6. A ~105ms frame time at 4K is normal for X-Plane itself (its own rendering cost); the DLSS5 feed adds only ~1.5ms."));
+        Line(L.S("5. ⚠ XP12 会主动屏蔽滤镜层：必须以 --allow_reshade 参数启动，否则 Home 键无反应。",
+                 "5. ⚠ XP12 blocks filter layers: always launch with --allow_reshade, or Home does nothing."));
+        Line(L.S("   安装完成后工具会自动创建桌面快捷方式「X-Plane 12 (DLSS5)」（已带该参数）；",
+                 "   After installing, the tool creates a desktop shortcut \"X-Plane 12 (DLSS5)\" with the flag;"));
+        Line(L.S("   Steam 启动的用户请在 启动选项 中添加 --allow_reshade。",
+                 "   Steam players should add --allow_reshade in the game's launch options instead."));
+        Line(L.S("6. 已知特性：运动矢量为着色器估算，快速移动视角时会有短暂重影，属方案固有行为。",
+                 "6. Known trait: motion vectors are shader-estimated, so fast camera moves show brief ghosting — inherent to this approach."));
+        Line(L.S("7. XP12 本体 4K 渲染帧间隔约 105ms 属正常（本体渲染耗时），DLSS5 供给仅占约 1.5ms。",
+                 "7. A ~105ms frame time at 4K is normal for X-Plane itself (its own rendering cost); the DLSS5 feed adds only ~1.5ms."));
         Gap();
 
         Heading(L.S("五、卸载与恢复", "5. Uninstall & Restore"));
@@ -172,6 +178,10 @@ public sealed class TutorialPage : Theme.AmbientPage
                  "  and lower texture/terrain resolution in game. The installer now auto-recommends WorkingScale by VRAM."));
         Line(L.S("  也可以先在主页把「DLSS5 滤镜开关」关闭（见上一节），待调低参数后再重新开启。",
                  "  Alternatively switch the \"DLSS5 filter\" off on the home card (see previous section) and re-enable after tuning."));
+        Line(L.S("· XP12 按 Home 键无反应：游戏屏蔽了滤镜层。用桌面的「X-Plane 12 (DLSS5)」快捷方式启动，",
+                 "· XP12: Home does nothing — the game blocks the filter layer. Launch via the \"X-Plane 12 (DLSS5)\" desktop shortcut,"));
+        Line(L.S("  或在 Steam 启动项添加 --allow_reshade 后再启动。",
+                 "  or add --allow_reshade to the Steam launch options."));
         Line(L.S("· 提示「驱动过低」：DLSS5 神经渲染 runtime 要求驱动 ≥ 616.56，先升级驱动。",
                  "· \"Driver too old\": the DLSS5 neural-render runtime needs driver ≥ 616.56 — update first."));
         Line(L.S("· 提示「游戏文件被占用」：游戏未完全关闭或有崩溃残留进程，重启电脑后重试。",
