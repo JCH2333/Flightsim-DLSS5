@@ -108,7 +108,7 @@ async function api(path, opts = {}) {
   if (token) headers['Authorization'] = 'Bearer ' + token;
   if (opts.body && !(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   const resp = await fetch(API + path, Object.assign({}, opts, { headers }));
-  if (resp.status === 401) { setToken(''); throw new Error('登录已过期，请重新登录'); }
+  if (resp.status === 401) { setToken(''); renderLogin(); throw new Error('登录已过期，请重新登录'); }
   const body = await resp.json().catch(() => ({}));
   if (!resp.ok || body.code >= 400) throw new Error(body.message || body.error || ('HTTP ' + resp.status));
   return body.data !== undefined ? body.data : body;
@@ -192,11 +192,14 @@ async function renderAnnouncements() {
     <tbody id="rows"><tr><td colspan="8" class="empty">加载中...</td></tr></tbody>
   </table></div>`;
   const load = async () => {
+    const tb0 = document.getElementById('rows');
+    try {
     const qs = new URLSearchParams();
     if (fStatus.value) qs.set('status', fStatus.value);
     if (fKw.value.trim()) qs.set('keyword', fKw.value.trim());
     annCache = (await api('/admin/announcements?' + qs)).content;
     const tb = document.getElementById('rows');
+    if (!tb) return;
     if (!annCache.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">暂无公告数据</td></tr>'; return; }
     tb.innerHTML = annCache.map(a => `<tr class="row">
       <td class="mono">${a.id}</td>
@@ -217,6 +220,10 @@ async function renderAnnouncements() {
         <button data-act="del" data-id="${a.id}" class="danger">删除</button>
       </td></tr>`).join('');
     tb.querySelectorAll('button').forEach(b => b.addEventListener('click', () => rowAction(b.dataset.act, +b.dataset.id, load)));
+    } catch (e) {
+      if (tb0) tb0.innerHTML = '<tr><td colspan="8" class="empty">加载失败：' + esc(e.message) + '（请刷新重试）</td></tr>';
+      toast(e.message, true);
+    }
   };
   const catLabel = c => c === 'global' ? '全局' : c === 'software' ? '软件' : '补丁 · ' + c.slice(6);
   document.getElementById('btnSearch').addEventListener('click', load);
@@ -326,11 +333,14 @@ async function renderFeedback() {
     <tbody id="fbRows"><tr><td colspan="8" class="empty">加载中...</td></tr></tbody>
   </table></div>`;
   const load = async () => {
+    const tb0 = document.getElementById('fbRows');
+    try {
     const qs = new URLSearchParams({ page: '0', size: '50' });
     if (fbStatus.value) qs.set('status', fbStatus.value);
     const d = await api('/admin/feedback?' + qs);
     refreshUnread();
     const tb = document.getElementById('fbRows');
+    if (!tb) return;
     if (!d.content.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">暂无反馈</td></tr>'; return; }
     tb.innerHTML = d.content.map(f => `<tr class="row" data-id="${f.id}" style="cursor:pointer">
       <td class="mono">${f.read ? '' : '<span class="dot"></span>'}${esc(f.code || f.id)}${f.code ? `<span class="muted" style="font-size:11px;display:block">${esc(f.id)}</span>` : ''}</td>
@@ -342,13 +352,19 @@ async function renderFeedback() {
       <td class="muted" style="font-size:12px">${f.logCount}志/${f.shotCount}图</td>
       <td class="muted mono" style="font-size:12px">${fmtTime(f.receivedAt)}</td></tr>`).join('');
     tb.querySelectorAll('tr').forEach(tr => tr.addEventListener('click', () => detailFeedback(tr.dataset.id, load)));
+    } catch (e) {
+      if (tb0) tb0.innerHTML = '<tr><td colspan="8" class="empty">加载失败：' + esc(e.message) + '（请刷新重试）</td></tr>';
+      toast(e.message, true);
+    }
   };
   document.getElementById('fbRefresh').addEventListener('click', load);
   fbStatus.addEventListener('change', load);
   await load();
 }
 async function detailFeedback(id, reload) {
-  const r = await api('/admin/feedback/' + id);
+  let r;
+  try { r = await api('/admin/feedback/' + id); }
+  catch (e) { toast(e.message, true); return; }
   refreshUnread();
   const games = (r.games || []).map(g => `<span class="mini-tag">${esc(g.name)}：${esc(g.state)}</span>`).join(' ') || '-';
   const bd = modal(`

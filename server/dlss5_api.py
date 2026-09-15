@@ -69,7 +69,7 @@ ASSET_WEB_DIR = os.environ.get("ASSET_WEB_DIR", "/srv/repo/dlss5/assets/announce
 
 MAX_BODY = 48 * 1024 * 1024
 MAX_IMAGE = 2 * 1024 * 1024           # 赞助码/公告图片上限（与 GSX 一致：赞助码 ≤2MB）
-TOKEN_TTL = 48 * 3600
+TOKEN_TTL = 30 * 24 * 3600   # 管理端登录有效期 30 天（旧值 48h 过期后前端曾卡在加载中）
 FB_PATH = "/repo/dlss5/feedback"
 DAILY_LIMIT = 10
 INTERVAL_SECONDS = 600
