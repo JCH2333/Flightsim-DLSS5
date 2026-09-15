@@ -178,7 +178,12 @@ public sealed class AboutPage : Theme.AmbientPage
         var btn = Theme.MakeButton(buttonText, height: 30);
         btn.Size = new Size(108, 30);
         btn.Location = new Point(w - 108 - 12, h - 30 - 10);
-        if (dev) btn.Enabled = false;
+        // 防呆设计：开发中按钮也可点击，弹窗说明而不是灰掉
+        if (dev)
+            btn.Click += (_, _) => MessageBox.Show(this,
+                L.S("X-Plane 11 支持正在开发中，敬请期待后续版本更新。",
+                    "X-Plane 11 support is in development — stay tuned for a future update."),
+                L.S("开发中", "In development"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         else btn.Click += (_, _) => browse!();
         card.Controls.Add(btn);
 

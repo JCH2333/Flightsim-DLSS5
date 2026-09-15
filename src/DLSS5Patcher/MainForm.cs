@@ -545,8 +545,7 @@ public sealed class MainForm : Theme.DpiScaledForm
             _home.SetCard(HomePage.CardMsfs2024,
                 L.S("未检测到安装", "Not detected"),
                 L.S("未检测到安装。可在设置页「手动配置」中手动指定游戏目录。",
-                    "No installation detected. You can set the game folder under \"Manual setup\" in Settings."),
-                canInstall: false, canUninstall: false);
+                    "No installation detected. You can set the game folder under \"Manual setup\" in Settings."));
             _home.SetNrSwitch(HomePage.CardMsfs2024, visible: false, on: false);
             return;
         }
@@ -555,12 +554,8 @@ public sealed class MainForm : Theme.DpiScaledForm
         var aa = UserCfg.ReadAntiAliasing(UserCfg.PathFor(_game2024.ExeName) ?? "");
         var stateText = $"{state}   |   " + L.S($"游戏抗锯齿: {aa ?? "未知"}（需为 DLSS/DLAA）",
                                                 $"In-game AA: {aa ?? "unknown"} (must be DLSS/DLAA)");
-        var locked = UnlockedInstaller.CoreFileLocked(_game2024.GameDir);
-        var canInstall = _gpu.SupportedThisVersion && _gpu.DriverOk && !locked;
-        var canUninstall = !locked &&
-            (File.Exists(Path.Combine(_game2024.GameDir, "OptiScaler.ini")) || UnlockedInstaller.LoadManifest() != null);
         _home.SetCard(HomePage.CardMsfs2024, stateText,
-            $"{_game2024.GameDir}   [{_game2024.Source}]", canInstall, canUninstall);
+            $"{_game2024.GameDir}   [{_game2024.Source}]");
         UpdateNrSwitch(HomePage.CardMsfs2024, _game2024);
     }
 
@@ -571,22 +566,17 @@ public sealed class MainForm : Theme.DpiScaledForm
             _home.SetCard(HomePage.CardMsfs2020,
                 L.S("未检测到安装", "Not detected"),
                 L.S("未检测到安装。可在设置页「手动配置」中手动指定游戏目录。",
-                    "No installation detected. You can set the game folder under \"Manual setup\" in Settings."),
-                canInstall: false, canUninstall: false);
+                    "No installation detected. You can set the game folder under \"Manual setup\" in Settings."));
             _home.SetNrSwitch(HomePage.CardMsfs2020, visible: false, on: false);
             return;
         }
 
-        var state = UnlockedInstaller.DetectState(_game2020.GameDir);
-        var aa = UserCfg.ReadAntiAliasing(UserCfg.PathFor(_game2020.ExeName) ?? "");
-        var stateText = $"{state}   |   " + L.S($"游戏抗锯齿: {aa ?? "未知"}（需为 DLSS/DLAA）",
-                                                $"In-game AA: {aa ?? "unknown"} (must be DLSS/DLAA)");
-        var locked = UnlockedInstaller.CoreFileLocked(_game2020.GameDir);
-        var canInstall = _gpu.SupportedThisVersion && _gpu.DriverOk && !locked;
-        var canUninstall = !locked &&
-            (File.Exists(Path.Combine(_game2020.GameDir, "OptiScaler.ini")) || UnlockedInstaller.LoadManifest() != null);
-        _home.SetCard(HomePage.CardMsfs2020, stateText,
-            $"{_game2020.GameDir}   [{_game2020.Source}]", canInstall, canUninstall);
+        var state20 = UnlockedInstaller.DetectState(_game2020.GameDir);
+        var aa20 = UserCfg.ReadAntiAliasing(UserCfg.PathFor(_game2020.ExeName) ?? "");
+        var stateText20 = $"{state20}   |   " + L.S($"游戏抗锯齿: {aa20 ?? "未知"}（需为 DLSS/DLAA）",
+                                                    $"In-game AA: {aa20 ?? "unknown"} (must be DLSS/DLAA)");
+        _home.SetCard(HomePage.CardMsfs2020, stateText20,
+            $"{_game2020.GameDir}   [{_game2020.Source}]");
         UpdateNrSwitch(HomePage.CardMsfs2020, _game2020);
     }
 
@@ -636,20 +626,14 @@ public sealed class MainForm : Theme.DpiScaledForm
         {
             _home.SetCard(HomePage.CardXp12, L.S("未检测到安装", "Not detected"),
                 L.S("未检测到安装。可在设置页「手动配置」中指定 X-Plane.exe 主程序。",
-                    "No installation detected. Pick X-Plane.exe under \"Manual setup\" in Settings."),
-                canInstall: false, canUninstall: false);
+                    "No installation detected. Pick X-Plane.exe under \"Manual setup\" in Settings."));
             return;
         }
 
         var state = XP12Installer.DetectState(_gameXp12.GameDir);
-        var locked = XP12Installer.CoreFileLocked(_gameXp12.GameDir);
-        var canInstall = !locked;
-        var canUninstall = !locked &&
-            (File.Exists(Path.Combine(_gameXp12.GameDir, "dlss5-feed.addon64")) || XP12Installer.LoadManifest() != null);
         _home.SetCard(HomePage.CardXp12, state,
             $"{_gameXp12.GameDir}   [{_gameXp12.Source}]   |   " + L.S($"组件包: {KitStatusText()}", $"Kit: {KitStatusText()}")
-            + L.S("   |   ⚠ 需以 --allow_reshade 启动", "   |   ⚠ launch with --allow_reshade"),
-            canInstall, canUninstall);
+            + L.S("   |   ⚠ 需以 --allow_reshade 启动", "   |   ⚠ launch with --allow_reshade"));
     }
 
     /// <summary>手动指定游戏主程序（idx: 0=MSFS 2024, 1=MSFS 2020, 2=XP12）。直接选 exe：exe 所在目录即游戏目录，商店版同样适用。持久化到 AppConfig。</summary>
@@ -837,19 +821,108 @@ public sealed class MainForm : Theme.DpiScaledForm
         _ = RefreshAsync();
     }
 
+    // ───────────────────────────── 防呆校验（按钮始终可点，点击时弹窗说明缺什么） ─────────────────────────────
+
+    private static string BlockFooter => L.S(
+        "\n\n完成上述操作后，重新点击该按钮即可继续。",
+        "\n\nOnce done, click the button again to continue.");
+
+    private static string GpuDesc(GpuInfo gpu) =>
+        string.IsNullOrWhiteSpace(gpu.Name) ? gpu.GenerationCn : $"{gpu.Name}（{gpu.GenerationCn}）";
+
+    private static string LockReason => L.S(
+        "• 游戏文件正被占用（游戏未完全退出，或有残留后台进程）。\n  请完全关闭游戏后在主页点击「重新检测」。",
+        "• Game files are locked (the game hasn't fully exited, or a leftover process remains).\n  Fully close the game, then click \"Re-detect\" on the home page.");
+
+    /// <summary>收集 MSFS「一键安装」当前不满足的条件；空串 = 可以安装。</summary>
+    private string MsfsInstallBlockReason(GameInstall? game, bool beta)
+    {
+        if (game == null)
+            return L.S(
+                $"未检测到微软模拟飞行 {(beta ? "2020" : "2024")} 的安装目录。\n\n" +
+                "• 到「关于」页 →「手动配置」指定游戏所在文件夹（选中含游戏主程序的目录即可，商店版同样适用）。\n" +
+                "• 或确认游戏已正确安装后，回到主页点击「重新检测」。",
+                $"No Microsoft Flight Simulator {(beta ? "2020" : "2024")} installation was detected.\n\n" +
+                "• Go to the About page → \"Manual setup\" and pick the game's folder (works for Store versions too).\n" +
+                "• Or verify the game is installed, then click \"Re-detect\" on the home page.");
+        var reasons = new List<string>();
+        if (!_gpu.SupportedThisVersion)
+            reasons.Add(L.S(
+                $"• 显卡不受支持：当前检测到 {GpuDesc(_gpu)}。\n  DLSS5 神经渲染需要 NVIDIA RTX 20/30/40/50 系显卡。",
+                $"• Unsupported GPU: detected {GpuDesc(_gpu)}.\n  DLSS5 neural rendering requires an NVIDIA RTX 20/30/40/50 series GPU."));
+        if (!_gpu.DriverOk)
+            reasons.Add(L.S(
+                "• 显卡驱动过低：神经渲染需要 616.56 或更新版本。\n  请先通过 NVIDIA App / GeForce Experience 或官网更新驱动，再重启本工具。",
+                "• GPU driver is too old: 616.56+ is required.\n  Update via the NVIDIA App / GeForce Experience or the NVIDIA website, then restart this tool."));
+        if (UnlockedInstaller.CoreFileLocked(game.GameDir))
+            reasons.Add(LockReason);
+        return string.Join("\n", reasons);
+    }
+
+    /// <summary>收集 MSFS「一键卸载」当前不满足的条件；空串 = 可以卸载。</summary>
+    private string MsfsUninstallBlockReason(GameInstall? game)
+    {
+        if (game == null)
+            return L.S(
+                "未检测到该游戏的安装目录，本工具未在此游戏上安装过组件，无需卸载。\n\n" +
+                "若游戏已被删除或移动，可忽略此卡片。",
+                "No installation of this game was detected — nothing was installed here, so there is nothing to uninstall.\n\n" +
+                "If the game was deleted or moved, you can simply ignore this card.");
+        if (UnlockedInstaller.CoreFileLocked(game.GameDir))
+            return LockReason;
+        if (!File.Exists(Path.Combine(game.GameDir, "OptiScaler.ini")) && UnlockedInstaller.LoadManifest() == null)
+            return L.S(
+                "该游戏目录内未发现已安装的 DLSS5 组件，无需卸载。\n\n若你确认之前安装过，请先点击「重新检测」再试。",
+                "No DLSS5 components were found in this game's folder — nothing to uninstall.\n\nIf you installed before, click \"Re-detect\" first.");
+        return "";
+    }
+
+    /// <summary>收集 XP12「一键安装」当前不满足的条件；空串 = 可以安装。</summary>
+    private string Xp12InstallBlockReason()
+    {
+        if (_gameXp12 == null)
+            return L.S(
+                "未检测到 X-Plane 12 的安装目录。\n\n" +
+                "• 到「关于」页 →「手动配置」指定 X-Plane.exe 所在文件夹。\n" +
+                "• 或确认游戏已正确安装后，回到主页点击「重新检测」。",
+                "No X-Plane 12 installation was detected.\n\n" +
+                "• Go to the About page → \"Manual setup\" and pick the folder containing X-Plane.exe.\n" +
+                "• Or verify the game is installed, then click \"Re-detect\" on the home page.");
+        if (XP12Installer.CoreFileLocked(_gameXp12.GameDir))
+            return LockReason;
+        return "";
+    }
+
+    /// <summary>收集 XP12「一键卸载」当前不满足的条件；空串 = 可以卸载。</summary>
+    private string Xp12UninstallBlockReason()
+    {
+        if (_gameXp12 == null)
+            return L.S(
+                "未检测到 X-Plane 12 的安装目录，本工具未在此游戏上安装过组件，无需卸载。\n\n若游戏已被删除或移动，可忽略此卡片。",
+                "No X-Plane 12 installation was detected — nothing was installed here, so there is nothing to uninstall.\n\nIf the game was deleted or moved, you can simply ignore this card.");
+        if (XP12Installer.CoreFileLocked(_gameXp12.GameDir))
+            return LockReason;
+        if (!File.Exists(Path.Combine(_gameXp12.GameDir, "dlss5-feed.addon64")) && XP12Installer.LoadManifest() == null)
+            return L.S(
+                "该游戏目录内未发现已安装的 DLSS5 组件，无需卸载。\n\n若你确认之前安装过，请先点击「重新检测」再试。",
+                "No DLSS5 components were found in this game's folder — nothing to uninstall.\n\nIf you installed before, click \"Re-detect\" first.");
+        return "";
+    }
+
+    private void ShowBlockReason(string reason, bool install)
+    {
+        MessageBox.Show(this, reason + BlockFooter,
+            install ? L.S("暂时无法安装", "Can't install yet") : L.S("暂时无法卸载", "Can't uninstall yet"),
+            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+    }
+
     // ───────────────────────────── MSFS 安装 / 卸载（2024 正式版；2020 Beta，流程相同） ─────────────────────────────
 
     private async Task InstallMsfsAsync(GameInstall? game, bool beta)
     {
-        if (game == null) return;
-        if (!_gpu.SupportedThisVersion || !_gpu.DriverOk)
-        {
-            MessageBox.Show(this,
-                L.S("当前 GPU 或驱动不满足要求（需 RTX 20-50 系、驱动 ≥ 616.56）。",
-                    "Your GPU or driver does not meet the requirements (RTX 20-50 series and driver ≥ 616.56 required)."),
-                L.S("无法安装", "Cannot install"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
+        var blocked = MsfsInstallBlockReason(game, beta);
+        if (blocked.Length > 0) { ShowBlockReason(blocked, install: true); return; }
+        var g = game!;   // block reason 已确保检测到游戏目录
 
         var name = beta ? L.S("MSFS 2020（Beta 实验版）", "MSFS 2020 (Beta, experimental)")
                         : L.S("MSFS 2024", "MSFS 2024");
@@ -882,8 +955,8 @@ public sealed class MainForm : Theme.DpiScaledForm
 
             await UnlockedInstaller.InstallAsync(new UnlockedInstaller.InstallOptions
             {
-                GameDir = game.GameDir,
-                ExeName = game.ExeName,
+                GameDir = g.GameDir,
+                ExeName = g.ExeName,
                 WorkingScale = _about.WorkingScale,
                 Generation = _gpu.Generation,
                 Log = Log,
@@ -920,7 +993,9 @@ public sealed class MainForm : Theme.DpiScaledForm
 
     private async Task UninstallMsfsAsync(GameInstall? game, bool beta)
     {
-        if (game == null) return;
+        var blocked = MsfsUninstallBlockReason(game);
+        if (blocked.Length > 0) { ShowBlockReason(blocked, install: false); return; }
+        var g = game!;   // block reason 已确保检测到游戏目录
         if (MessageBox.Show(this,
                 L.S("将删除本工具安装的全部文件并恢复游戏配置。\n是否继续？",
                     "This will remove all files installed by this tool and restore the game's configuration.\nContinue?"),
@@ -930,7 +1005,7 @@ public sealed class MainForm : Theme.DpiScaledForm
         _home.SetBusy(true, L.S("卸载中...", "Uninstalling..."));
         try
         {
-            await Task.Run(() => UnlockedInstaller.Uninstall(game.GameDir, Log));
+            await Task.Run(() => UnlockedInstaller.Uninstall(g.GameDir, Log));
             Log(L.S("卸载完成。", "Uninstalled."));
         }
         catch (Exception ex)
@@ -948,7 +1023,9 @@ public sealed class MainForm : Theme.DpiScaledForm
 
     private async Task InstallXp12Async()
     {
-        if (_gameXp12 == null) return;
+        var blocked = Xp12InstallBlockReason();
+        if (blocked.Length > 0) { ShowBlockReason(blocked, install: true); return; }
+        var xp = _gameXp12!;   // block reason 已确保检测到游戏目录
 
         var confirm = MessageBox.Show(this,
             L.S("即将为 X-Plane 12 安装 DLSS5（DLSS5-Feeder 路线：合成 DLSS 契约 + 运动矢量估算 + 神经渲染）。\n\n" +
@@ -971,8 +1048,8 @@ public sealed class MainForm : Theme.DpiScaledForm
         {
             await XP12Installer.InstallAsync(new XP12Installer.InstallOptions
             {
-                GameDir = _gameXp12.GameDir,
-                ExePath = _gameXp12.ExePath,
+                GameDir = xp.GameDir,
+                ExePath = xp.ExePath,
                 KitDir = AppConfig.KitDir,
                 Log = Log,
             });
@@ -982,9 +1059,9 @@ public sealed class MainForm : Theme.DpiScaledForm
             try
             {
                 var lnk = ShortcutHelper.ShortcutPath("X-Plane 12 (DLSS5)");
-                ShortcutHelper.Create("X-Plane 12 (DLSS5)", _gameXp12.ExePath, "--allow_reshade",
-                    _gameXp12.GameDir, L.S("以 --allow_reshade 启动 X-Plane（DLSS5 滤镜必需）",
-                                            "Launch X-Plane with --allow_reshade (required by DLSS5)"));
+                ShortcutHelper.Create("X-Plane 12 (DLSS5)", xp.ExePath, "--allow_reshade",
+                    xp.GameDir, L.S("以 --allow_reshade 启动 X-Plane（DLSS5 滤镜必需）",
+                                    "Launch X-Plane with --allow_reshade (required by DLSS5)"));
                 Log(L.S("已在桌面创建「X-Plane 12 (DLSS5)」快捷方式（自动带 --allow_reshade 启动参数）。",
                         "Created the desktop shortcut \"X-Plane 12 (DLSS5)\" (launches with --allow_reshade)."));
                 shortcutTip = L.S(
@@ -1020,7 +1097,9 @@ public sealed class MainForm : Theme.DpiScaledForm
 
     private async Task UninstallXp12Async()
     {
-        if (_gameXp12 == null) return;
+        var blocked = Xp12UninstallBlockReason();
+        if (blocked.Length > 0) { ShowBlockReason(blocked, install: false); return; }
+        var xp = _gameXp12!;   // block reason 已确保检测到游戏目录
         if (MessageBox.Show(this,
                 L.S("将删除 XP12 中本工具安装的全部文件、注销 Vulkan 层并恢复原状。\n是否继续？",
                     "This will remove all files installed by this tool in XP12, unregister the Vulkan layer and restore the original state.\nContinue?"),
@@ -1030,7 +1109,7 @@ public sealed class MainForm : Theme.DpiScaledForm
         _home.SetBusy(true, L.S("卸载中...", "Uninstalling..."));
         try
         {
-            await Task.Run(() => XP12Installer.Uninstall(_gameXp12.GameDir, _gameXp12.ExePath, Log));
+            await Task.Run(() => XP12Installer.Uninstall(xp.GameDir, xp.ExePath, Log));
             Core.ShortcutHelper.Delete("X-Plane 12 (DLSS5)");   // 顺带清理安装时创建的快捷方式
             Log(L.S("XP12 卸载完成。", "XP12 uninstalled."));
         }

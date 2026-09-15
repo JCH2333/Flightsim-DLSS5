@@ -100,9 +100,19 @@ public sealed class AgreementDialog : Theme.DpiScaledForm
         _btnAgree.Size = new Size(240, 42);
         _btnAgree.Location = new Point(620 - 240 - 30, 570);
         _btnAgree.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        _btnAgree.Enabled = false;
+        // 防呆设计：未读完时按钮也可点击，点击时弹窗提示还差哪份文件（不满足条件无法通过）
         _btnAgree.Click += (_, _) =>
         {
+            if (!_read[0] || !_read[1])
+            {
+                int done = _read.Count(r => r);
+                MessageBox.Show(this,
+                    L.S($"请先依次滚动阅读两份文件至末尾（已完成 {done}/2）。\n当前文件读完后，点击上方页签切换到另一份继续阅读。",
+                        $"Please scroll both documents to the end first ({done}/2 done).\nAfter finishing this one, use the tabs above to open the other."),
+                    L.S("请先阅读协议", "Please read the documents first"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             AppConfig.AgreedRevision = AgreementContent.Revision;
             AppConfig.AgreedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
             AppConfig.Save();
@@ -186,7 +196,6 @@ public sealed class AgreementDialog : Theme.DpiScaledForm
             else
             {
                 _btnAgree.Text = L.S("同意并继续使用", "Agree && Continue");
-                _btnAgree.Enabled = allRead;
                 _lblRead.Text = allRead
                     ? L.S("已完整阅读两份文件。请点击「同意并继续使用」。", "Both documents fully read. Click \"Agree && Continue\".")
                     : L.S("请依次滚动阅读两份文件至末尾。", "Scroll through both documents to the end.");
@@ -198,7 +207,6 @@ public sealed class AgreementDialog : Theme.DpiScaledForm
             _lblRead.Text = allRead
                 ? L.S("已完整阅读两份文件。请点击「同意并继续使用」。", "Both documents fully read. Click \"Agree && Continue\".")
                 : L.S($"请依次滚动阅读两份文件至末尾（已完成 {done}/2）。", $"Scroll through both documents to the end ({done}/2 done).");
-            _btnAgree.Enabled = allRead;
         }
     }
 }

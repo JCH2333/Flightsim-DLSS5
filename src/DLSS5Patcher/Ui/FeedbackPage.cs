@@ -720,13 +720,12 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
 
     // ───────────────────────────── 提交 ─────────────────────────────
 
-    /// <summary>防呆门控：必须勾选至少一个出问题的游戏且填写描述才允许提交（提交中/已提交态不干预）。</summary>
+    /// <summary>防呆提示：未选游戏/未填描述时按钮仍可点（点击时弹窗说明），状态行同步给出引导。</summary>
     private void UpdateSubmitGate()
     {
         if (_submitted || _submitting) return;
         bool anyGame = _ck24.Checked || _ck20.Checked || _ckxp.Checked;
         bool hasDesc = _txtDesc.Text.Trim().Length > 0;
-        _btnSubmit.Enabled = anyGame && hasDesc;
         if (!anyGame)
         {
             _lblStatus.ForeColor = Theme.Warning;
@@ -828,6 +827,15 @@ public sealed class FeedbackPage : UserControl, Theme.IWheelScrollTarget
     private async Task SubmitAsync()
     {
         if (_submitting || _submitted) return;
+
+        if (!_ck24.Checked && !_ck20.Checked && !_ckxp.Checked)
+        {
+            MessageBox.Show(this,
+                L.S("请先勾选出问题的游戏（至少一项，可多选）。\n\n反馈需要关联具体游戏才能定位问题：勾选后提交时\n会自动附上对应游戏的安装状态与日志。",
+                    "Pick the affected game(s) first (at least one, multi-select allowed).\n\nFeedback needs a game so the problem can be traced:\nthe submit then auto-attaches that game's install state and logs."),
+                L.S("未选择游戏", "No game selected"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
 
         var desc = _txtDesc.Text.Trim();
         if (desc.Length == 0)

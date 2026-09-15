@@ -33,8 +33,6 @@ public sealed class HomePage : Theme.AmbientPage
     private readonly Label _lblChecks = new();
     private readonly Label[] _cardState = new Label[4];
     private readonly Label[] _cardPath = new Label[4];
-    private readonly Theme.GlassButton[] _btnInstall = new Theme.GlassButton[4];
-    private readonly Theme.GlassButton[] _btnUninstall = new Theme.GlassButton[4];
     private readonly List<Theme.GlassButton> _allButtons = new();
     private readonly Panel[] _progressTrack = new Panel[4];
     private readonly Label[] _progressFill = new Label[4];
@@ -185,10 +183,14 @@ public sealed class HomePage : Theme.AmbientPage
 
         if (dev)
         {
+            // 防呆设计：开发中按钮也可点击，弹窗说明而不是灰掉
             var btnDev = Theme.MakeButton(L.S("开发中", "In development"), height: 30);
             btnDev.Size = new Size(124, 30);
             btnDev.Location = new Point(ContentW - 124 - 16, 6);
-            btnDev.Enabled = false;
+            btnDev.Click += (_, _) => MessageBox.Show(this,
+                L.S("X-Plane 11 支持正在开发中，敬请期待后续版本更新。",
+                    "X-Plane 11 support is in development — stay tuned for a future update."),
+                L.S("开发中", "In development"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             _allButtons.Add(btnDev);
             strip.Controls.Add(btnDev);
             Controls.Add(card);
@@ -207,7 +209,6 @@ public sealed class HomePage : Theme.AmbientPage
                 case CardXp12: XpInstallRequested?.Invoke(); break;
             }
         };
-        _btnInstall[idx] = btnInstall;
         _allButtons.Add(btnInstall);
         strip.Controls.Add(btnInstall);
 
@@ -223,7 +224,6 @@ public sealed class HomePage : Theme.AmbientPage
                 case CardXp12: XpUninstallRequested?.Invoke(); break;
             }
         };
-        _btnUninstall[idx] = btnUninstall;
         _allButtons.Add(btnUninstall);
         strip.Controls.Add(btnUninstall);
 
@@ -267,14 +267,12 @@ public sealed class HomePage : Theme.AmbientPage
         _lblChecks.ForeColor = ok ? Theme.TextMuted : Theme.Warning;
     }
 
-    /// <summary>更新卡片内容与按钮真实可用性（检测完成后调用）。</summary>
-    public void SetCard(int idx, string state, string path, bool canInstall, bool canUninstall)
+    /// <summary>更新卡片状态与路径显示。防呆设计：安装/卸载按钮始终可点，条件不满足时由 MainForm 在点击时弹窗说明缺什么。</summary>
+    public void SetCard(int idx, string state, string path)
     {
         _cardState[idx].Text = L.S("状态：", "Status: ") + state;
         _cardState[idx].ForeColor = StateColor(state);
         _cardPath[idx].Text = string.IsNullOrEmpty(path) ? L.S("未检测到安装。", "No installation detected.") : path;
-        _btnInstall[idx].Enabled = canInstall;
-        _btnUninstall[idx].Enabled = canUninstall;
     }
 
     /// <summary>更新神经渲染开关（visible=false 表示未安装/无法读取，开关隐藏）；不触发用户切换事件。</summary>
@@ -300,14 +298,13 @@ public sealed class HomePage : Theme.AmbientPage
         if (busy)
         {
             foreach (var b in _allButtons)
-            {
-                b.Tag = b.Enabled;
                 b.Enabled = false;
-            }
         }
         else
         {
-            _btnRefresh.Enabled = true;
+            // 防呆设计下按钮非忙碌时一律可用（条件校验在 MainForm 点击处理中弹窗说明）
+            foreach (var b in _allButtons)
+                b.Enabled = true;
             foreach (var track in _progressTrack) track.Visible = false;
             foreach (var lbl in _progressLabels) lbl.Visible = false;
         }
